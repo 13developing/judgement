@@ -4,7 +4,7 @@
 
 ## Project Overview
 
-Desktop application for automated exam grading (中小学智能判题系统). Supports photo-based answer capture, OCR via multimodal LLM, and intelligent scoring for fill-in-the-blank, short-answer, and calculation questions.
+Web application for automated university exam grading (大学智能判题系统). Supports photo-based answer capture, OCR via multimodal LLM, and intelligent scoring for fill-in-the-blank, short-answer, and calculation questions.
 
 **Tech stack**: Python · tkinter (desktop GUI) · requests · Pillow · OpenAI-compatible API  
 **Stage**: Early / greenfield — minimal structure, single-file backend, no CI/CD.
