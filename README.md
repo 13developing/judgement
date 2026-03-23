@@ -158,7 +158,6 @@ chore:    构建、依赖等杂项
 - [AGENTS.md](./AGENTS.md) — AI 编程代理执行规范
 - [需求规格说明书（V0.2）](./docs/reply/需求规格说明书.md) — 功能/架构/验收标准
 - [架构重构建议](./docs/architecture-proposal.md) — Web 架构迁移说明
-- [项目上手指南](./.ethan/项目上手指南.md) — 团队上手与私有 GitLab SSH 配置
 
 ## License
 

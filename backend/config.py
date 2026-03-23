@@ -17,7 +17,7 @@ DATABASE_PATH = DATA_DIR / "db.sqlite"
 # LLM / OpenAI-compatible API
 # ---------------------------------------------------------------------------
 OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL", "https://api.ethan0x0000.work/v1")
+OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 # ---------------------------------------------------------------------------
