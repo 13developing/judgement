@@ -1,126 +1,142 @@
 # 智能判题系统
 
-基于多模态大模型的中小学智能判题桌面应用，支持拍照上传题目图片，自动识别题型并完成评分。
+基于多模态大模型的中小学智能判题系统，当前按 **Web 应用（B/S）** 架构设计：
+- 用户通过浏览器拍照/上传题目
+- 服务端调用大模型进行识别、判分与过程分解释
+- 支持题库管理（Word/PDF 导入题目与答案）
 
-## 技术栈
+> 说明：项目已在需求规格说明书中切换到 V0.2 架构方向（FastAPI + Web 前端）。
 
-- **语言**：Python 3.10+
-- **桌面框架**：tkinter
-- **网络请求**：requests
-- **图像处理**：Pillow
-- **智能判题**：OpenAI 兼容接口（多模态 Chat Completions）
+## 技术栈（V0.2）
+
+| 层 | 技术 |
+|---|---|
+| 开发语言 | Python 3.10+ |
+| 后端框架 | FastAPI |
+| 数据库 | SQLite（后续可切 PostgreSQL） |
+| ORM | SQLModel |
+| 前端 | HTML + CSS + JavaScript |
+| 网络请求 | httpx（异步） |
+| 图像处理 | Pillow |
+| 文档解析 | python-docx + pdfplumber |
+| 模型调用 | OpenAI 兼容接口（多模态 Chat Completions） |
 
 ## 快速开始
 
-### 1. 安装依赖
+### 1) 安装依赖
 
 ```bash
-pip install requests pillow
+pip install fastapi uvicorn sqlmodel httpx python-multipart python-docx pdfplumber pillow jinja2
 ```
 
-### 2. 配置环境变量
+### 2) 配置环境变量
 
-系统通过环境变量读取 API 配置，请在运行前设置：
+系统通过环境变量读取 LLM API 配置。
 
 ```bash
 # Linux / macOS
 export OPENAI_API_KEY="your-api-key"
-export OPENAI_BASE_URL="https://api.ethan0x0000.work/v1"   # 可选，已有默认值
-export OPENAI_MODEL="gpt-4o-mini"                           # 可选，已有默认值
+export OPENAI_BASE_URL="https://api.ethan0x0000.work/v1"
+export OPENAI_MODEL="gpt-4o-mini"
 
-# Windows (PowerShell)
+# Windows PowerShell
 $env:OPENAI_API_KEY="your-api-key"
 $env:OPENAI_BASE_URL="https://api.ethan0x0000.work/v1"
 $env:OPENAI_MODEL="gpt-4o-mini"
 
-# Windows (CMD)
+# Windows CMD
 set OPENAI_API_KEY=your-api-key
 set OPENAI_BASE_URL=https://api.ethan0x0000.work/v1
 set OPENAI_MODEL=gpt-4o-mini
 ```
 
 | 变量名 | 说明 | 默认值 |
-|--------|------|--------|
-| `OPENAI_API_KEY` | LLM 服务 API Key | — （必填） |
+|---|---|---|
+| `OPENAI_API_KEY` | LLM 服务 API Key | 无（必填） |
 | `OPENAI_BASE_URL` | API 基地址 | `https://api.ethan0x0000.work/v1` |
 | `OPENAI_MODEL` | 模型标识符 | `gpt-4o-mini` |
 
-### 3. 启动应用
+### 3) 启动服务
 
 ```bash
-python backend/main.py
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-启动后将打开桌面窗口，按照界面提示上传题目图片并提交判题。
+浏览器访问：`http://localhost:8000`
 
 ## 项目结构
 
-```
+```text
 question-judgment/
-├── backend/              # 后端应用代码
-│   └── main.py           # 程序入口，GUI + 判题逻辑
-├── frontend/             # 前端（预留，暂未使用）
-├── test/                 # 测试资源
-│   └── pdf/              # 样卷与标准答案（PDF）
-├── docs/                 # 项目文档
-│   ├── request/          # 需求方原始要求
-│   ├── reply/            # 需求规格说明书
-│   └── 国内模型收费标准.md
-├── AGENTS.md             # AI 编程代理参考文档
-├── README.md             # 本文件
-└── .gitignore
+├── backend/                      # 后端代码
+│   ├── main.py                   # FastAPI 入口
+│   ├── routers/                  # API 路由（判题/上传/题库）
+│   ├── services/                 # 业务逻辑（判题/文档解析/匹配）
+│   ├── models.py                 # 数据模型
+│   └── utils/                    # 工具函数（图片、LaTeX）
+├── frontend/                     # 前端页面与静态资源
+│   ├── index.html                # 判题页
+│   └── bank.html                 # 题库管理页
+├── test/                         # 测试资源与测试代码
+│   └── pdf/                      # 样卷与答案 PDF
+├── docs/
+│   ├── request/                  # 原始需求
+│   ├── reply/                    # 需求规格说明书
+│   └── architecture-proposal.md  # 架构建议文档
+├── .ethan/
+│   └── 项目上手指南.md            # 团队上手文档（含私有 GitLab SSH 说明）
+├── AGENTS.md
+└── README.md
 ```
 
 ## 功能概述
 
 | 功能 | 说明 |
-|------|------|
-| 图片上传与预览 | 支持 PNG / JPG / JPEG / BMP 格式，上传后即时预览 |
-| 标准答案输入 | 可选填写标准答案，辅助校准判分 |
-| 智能判题 | 调用多模态大模型识别题型、判断正误、输出评分与解析 |
-| 题型支持 | 填空题、简答题、计算题（含过程分） |
-| LaTeX 转换 | 将公式转为可读纯文本，避免乱码 |
-| 防重复提交 | 判题期间禁用按钮，完成后自动恢复 |
+|---|---|
+| 拍照/上传题目 | 浏览器拍照或选择图片上传 |
+| 智能判题 | 识别题型、判断正误、输出得分与解析 |
+| 过程分 | 计算题按步骤给分并说明依据 |
+| 标准答案校准 | 有答案时进行二次校准与容错 |
+| 题库管理 | 支持 Word/PDF 导入题目与答案 |
+| 结果可追踪 | 保存判题记录，支持查询 |
 
 ## 开发指南
 
 ### 代码规范
 
-详细规范见 [AGENTS.md](./AGENTS.md)，以下为核心要点：
+请优先遵循 [AGENTS.md](./AGENTS.md) 与 [需求规格说明书](./docs/reply/需求规格说明书.md)。
 
-- **命名**：类 `PascalCase`，函数/变量 `snake_case`，常量 `UPPER_SNAKE_CASE`
-- **缩进**：4 空格
-- **引号**：双引号 `"`
-- **导入顺序**：标准库 → 第三方库 → 本地模块，各组之间空一行
-- **类型标注**：新增函数必须添加参数和返回值类型标注
-- **错误处理**：禁止裸 `except:`，必须指定异常类型
+核心规范：
+- 命名：类 `PascalCase`，函数/变量 `snake_case`，常量 `UPPER_SNAKE_CASE`
+- 缩进：4 空格
+- 导入顺序：标准库 → 第三方 → 本地模块
+- 类型标注：新增函数必须包含参数与返回值类型
+- 错误处理：禁止裸 `except:`
 
 ### Lint / 格式化（推荐）
 
-项目尚未配置 Lint 工具，推荐使用 [Ruff](https://docs.astral.sh/ruff/)：
-
 ```bash
 pip install ruff
-ruff check .          # 检查
-ruff check --fix .    # 自动修复
-ruff format .         # 格式化
+ruff check .
+ruff check --fix .
+ruff format .
 ```
 
 ### 测试（推荐）
 
-项目尚未配置测试框架，推荐使用 [pytest](https://docs.pytest.org/)：
-
 ```bash
 pip install pytest
-pytest test/                                 # 运行全部测试
-pytest test/test_something.py                # 运行单个文件
-pytest test/test_something.py::test_name     # 运行单个用例
-pytest -x                                    # 遇到失败立即停止
+pytest test/
+pytest test/test_something.py
+pytest test/test_something.py::test_name
+pytest -x
 ```
 
-### Git 提交规范
+## Git 与团队协作
 
-```
+### 提交信息规范
+
+```text
 feat:     新功能
 fix:      修复缺陷
 docs:     文档变更
@@ -129,18 +145,28 @@ test:     测试相关
 chore:    构建、依赖等杂项
 ```
 
-分支命名：`feature/xxx`、`fix/xxx`、`docs/xxx`
+分支命名建议：`feature/xxx`、`fix/xxx`、`docs/xxx`
+
+### 私有 GitLab（SSH）
+
+项目通用的 GitLab SSH 认证流程已整理在：
+
+- [`.ethan/项目上手指南.md`](./.ethan/项目上手指南.md)
+
+该说明为团队通用操作指引（非本项目特定仓库地址）。
 
 ## 安全须知
 
-- **禁止** 在源码中硬编码 API Key，一律通过环境变量传入
-- 如使用 `.env` 文件管理本地配置，务必将其加入 `.gitignore`
+- 严禁在源码中硬编码 API Key
+- 建议使用 `.env` 管理本地环境变量，并将 `.env` 加入 `.gitignore`
+- 私钥文件（SSH）不得上传到仓库
 
 ## 相关文档
 
-- [AGENTS.md](./AGENTS.md) — AI 编程代理完整参考
-- [需求规格说明书](./docs/reply/需求规格说明书.md) — 系统功能与非功能需求
-- [国内模型收费标准](./docs/国内模型收费标准.md) — API 选型与成本分析
+- [AGENTS.md](./AGENTS.md) — AI 编程代理执行规范
+- [需求规格说明书（V0.2）](./docs/reply/需求规格说明书.md) — 功能/架构/验收标准
+- [架构重构建议](./docs/architecture-proposal.md) — Web 架构迁移说明
+- [项目上手指南](./.ethan/项目上手指南.md) — 团队上手与私有 GitLab SSH 配置
 
 ## License
 
