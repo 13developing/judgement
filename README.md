@@ -19,7 +19,7 @@
 | 网络请求 | httpx（异步） |
 | 图像处理 | Pillow |
 | 文档解析 | python-docx + pdfplumber |
-| 模型调用 | OpenAI 兼容接口（多模态 Chat Completions） |
+| 模型调用 | 多 Provider 架构：豆包（主）/ OpenAI 兼容（兜底） |
 
 ## 快速开始
 
@@ -31,30 +31,38 @@ pip install fastapi uvicorn sqlmodel httpx python-multipart python-docx pdfplumb
 
 ### 2) 配置环境变量
 
-系统通过环境变量读取 LLM API 配置。
+系统通过环境变量读取 LLM 配置。默认使用**豆包（Doubao）**作为主力模型，OpenAI 兼容接口作为兜底。
 
 ```bash
 # Linux / macOS
-export OPENAI_API_KEY="your-api-key"
-export OPENAI_BASE_URL="https://api.ethan0x0000.work/v1"
-export OPENAI_MODEL="gpt-4o-mini"
+export LLM_API_KEY="your-api-key"
+# 可选：切换 provider（默认 ark）
+# export LLM_PROVIDER="openai"
+# export LLM_BASE_URL="https://api.openai.com/v1"
+# export LLM_MODEL="gpt-4o-mini"
 
 # Windows PowerShell
-$env:OPENAI_API_KEY="your-api-key"
-$env:OPENAI_BASE_URL="https://api.ethan0x0000.work/v1"
-$env:OPENAI_MODEL="gpt-4o-mini"
+$env:LLM_API_KEY="your-api-key"
 
 # Windows CMD
-set OPENAI_API_KEY=your-api-key
-set OPENAI_BASE_URL=https://api.ethan0x0000.work/v1
-set OPENAI_MODEL=gpt-4o-mini
+set LLM_API_KEY=your-api-key
 ```
 
 | 变量名 | 说明 | 默认值 |
 |---|---|---|
-| `OPENAI_API_KEY` | LLM 服务 API Key | 无（必填） |
-| `OPENAI_BASE_URL` | API 基地址 | `https://api.ethan0x0000.work/v1` |
-| `OPENAI_MODEL` | 模型标识符 | `gpt-4o-mini` |
+| `LLM_PROVIDER` | Provider 选择 | `ark`（豆包） |
+| `LLM_API_KEY` | API Key | 无（必填） |
+| `LLM_BASE_URL` | API 基地址（留空用 provider 默认） | Ark: `https://ark.cn-beijing.volces.com/api/v3` |
+| `LLM_MODEL` | 模型标识符（留空用 provider 默认） | Ark: `doubao-seed-2-0-lite-260215` |
+
+> **兼容提示**：旧环境变量 `OPENAI_API_KEY` / `OPENAI_BASE_URL` / `OPENAI_MODEL` 仍可作为回退使用。
+
+**Provider 一览**：
+
+| Provider | 标识 | 默认 Base URL | 默认模型 |
+|---|---|---|---|
+| 豆包 (Volcengine Ark) | `ark` | `https://ark.cn-beijing.volces.com/api/v3` | `doubao-seed-2-0-lite-260215` |
+| OpenAI 兼容 | `openai` | `https://api.openai.com/v1` | `gpt-4o-mini` |
 
 ### 3) 启动服务
 
@@ -72,6 +80,7 @@ question-judgment/
 │   ├── main.py                   # FastAPI 入口
 │   ├── routers/                  # API 路由（判题/上传/题库）
 │   ├── services/                 # 业务逻辑（判题/文档解析/匹配）
+│   │   └── providers/            # LLM Provider 抽象层（ark / openai）
 │   ├── models.py                 # 数据模型
 │   └── utils/                    # 工具函数（图片、LaTeX）
 ├── frontend/                     # 前端页面与静态资源

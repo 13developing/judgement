@@ -6,14 +6,19 @@
 
 Web application for automated university exam grading (大学智能判题系统). Supports photo-based answer capture, OCR via multimodal LLM, and intelligent scoring for fill-in-the-blank, short-answer, and calculation questions.
 
-**Tech stack**: Python · tkinter (desktop GUI) · requests · Pillow · OpenAI-compatible API  
-**Stage**: Early / greenfield — minimal structure, single-file backend, no CI/CD.
+**Tech stack**: Python · FastAPI · httpx · Pillow · Multi-provider LLM (Doubao primary, OpenAI fallback)  
+**Stage**: Early / greenfield — modular backend, provider abstraction in place, no CI/CD.
 
 ## Repository Layout
 
 ```
 backend/          # Python application code (main entry: main.py)
-frontend/         # Reserved for future frontend (currently empty)
+  services/       # Business logic (grading, doc parsing, matching)
+    providers/    # LLM provider abstraction (ark / openai_compat)
+  routers/        # FastAPI route handlers
+  utils/          # Helpers (image processing, LaTeX formatting)
+  config.py       # Centralized configuration
+frontend/         # Web frontend (HTML + CSS + JS)
 test/             # Test assets (PDF exam papers for manual testing)
   pdf/            # Sample exam papers and answer keys
 docs/             # Project documentation (Chinese)
@@ -26,22 +31,14 @@ docs/             # Project documentation (Chinese)
 ### Install Dependencies
 
 ```bash
-pip install requests pillow
-```
-
-No `requirements.txt` or `pyproject.toml` exists yet. When adding dependencies, create `requirements.txt`:
-
-```bash
-pip freeze > requirements.txt
+pip install -r requirements.txt
 ```
 
 ### Run the Application
 
 ```bash
-python backend/main.py
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
-
-The app opens a tkinter GUI window. Requires a display environment (no headless mode).
 
 ### Run a Single Test
 
@@ -106,7 +103,7 @@ from backend.utils import format_latex
 | Class          | `PascalCase`      | `ExamJudgeApp`            |
 | Function/Method| `snake_case`      | `judge_exam()`            |
 | Private method | `_snake_case`     | `_build_ui()`             |
-| Constant       | `UPPER_SNAKE_CASE`| `COLOR_MAIN`, `OPENAI_MODEL` |
+| Constant       | `UPPER_SNAKE_CASE`| `COLOR_MAIN`, `LLM_MODEL` |
 | Variable       | `snake_case`      | `img_base64`              |
 
 ### Formatting
@@ -132,19 +129,18 @@ def judge_exam(image_path: str, standard_answer: str | None = None) -> dict[str,
 ### Error Handling
 
 - Never use bare `except:` — always specify exception types
-- Network errors: catch `requests.exceptions.RequestException`
-- Show user-friendly messages via `messagebox` for GUI errors
+- Network errors: catch `httpx.HTTPStatusError` or `httpx.RequestError`
+- Return structured JSON error responses from API endpoints
 - Log technical details for debugging; show summaries to users
 
 ```python
 try:
-    response = requests.post(url, json=payload, timeout=30)
-    response.raise_for_status()
-except requests.exceptions.RequestException as e:
-    error_detail = str(e)
-    if hasattr(e, "response") and e.response is not None:
-        error_detail += f"\n{e.response.text}"
-    messagebox.showerror("请求失败", f"判题请求失败：{error_detail}")
+    resp = await client.post(url, json=payload, timeout=120)
+    resp.raise_for_status()
+except httpx.HTTPStatusError as e:
+    raise HTTPException(status_code=502, detail=f"LLM 请求失败: {e.response.text}")
+except httpx.RequestError as e:
+    raise HTTPException(status_code=502, detail=f"LLM 连接失败: {e}")
 ```
 
 ### Configuration & Secrets
@@ -155,27 +151,38 @@ except requests.exceptions.RequestException as e:
 
 ```
 Required env vars:
-  OPENAI_API_KEY     — API key for the LLM provider
-  OPENAI_BASE_URL    — API base URL (default: https://api.ethan0x0000.work/v1)
-  OPENAI_MODEL       — Model identifier (default: gpt-4o-mini)
+  LLM_API_KEY      — API key for the active LLM provider (required)
+
+Optional env vars (override provider defaults):
+  LLM_PROVIDER     — "ark" (default, 豆包) or "openai" (fallback)
+  LLM_BASE_URL     — API base URL (default varies by provider)
+  LLM_MODEL        — Model identifier (default varies by provider)
+
+Backward-compatible aliases (lower priority):
+  OPENAI_API_KEY   — Fallback for LLM_API_KEY
+  OPENAI_BASE_URL  — Fallback for LLM_BASE_URL
+  OPENAI_MODEL     — Fallback for LLM_MODEL
 ```
 
-### GUI / tkinter Patterns
+### Web Frontend Patterns
 
-- Use class-based structure: one class per window/dialog
-- Keep UI construction in `_build_ui()` methods
-- Store widget references on `self` only when needed for later access
-- Use named color constants at module level (`COLOR_MAIN`, `COLOR_BG`, etc.)
-- Disable buttons during async operations; re-enable in `finally` blocks
-- Use `self.root.update()` sparingly — prefer `after()` for non-blocking updates
+- Frontend lives in `frontend/` — plain HTML + CSS + JS (no build step)
+- Use `fetch()` for API calls to the FastAPI backend
+- Keep JS modular: separate files per page (`app.js`, `bank.js`)
+- CSS in `frontend/static/css/`; JS in `frontend/static/js/`
 
 ### API Integration
 
-- All LLM calls go through the OpenAI-compatible chat completions endpoint
+- All LLM calls go through `backend/services/llm_client.py` (thin façade)
+- Provider logic lives in `backend/services/providers/` (strategy pattern)
+- Primary provider: **Volcengine Ark (豆包)** — `ArkProvider`
+- Fallback provider: **OpenAI-compatible** — `OpenAICompatProvider`
+- Both providers use the OpenAI-compatible Chat Completions format (`/chat/completions`)
 - Encode images as base64 for multimodal input
 - Set `temperature=0.1` for deterministic grading results
-- Set reasonable `timeout` on all HTTP calls (30s default)
+- Set reasonable `timeout` on all HTTP calls (120s for LLM calls)
 - Structure prompts as system/user messages with clear grading rubrics
+- To add a new provider: subclass `LLMProvider` in `providers/base.py`, register in `providers/__init__.py`
 
 ### File Organization (Target Structure)
 
@@ -184,11 +191,16 @@ As the project grows, refactor toward:
 ```
 backend/
   __init__.py
-  main.py              # Entry point, GUI initialization
-  ui/                  # UI components (windows, dialogs, widgets)
-  services/            # Business logic (grading, API calls)
-  utils/               # Helpers (image processing, LaTeX formatting)
+  main.py              # Entry point, FastAPI app
   config.py            # Centralized configuration
+  routers/             # FastAPI route handlers
+  services/            # Business logic (grading, API calls)
+    providers/         # LLM provider abstraction
+      base.py          # LLMProvider ABC + shared implementation
+      ark.py           # Volcengine Ark (豆包) — primary
+      openai_compat.py # OpenAI-compatible — fallback
+    llm_client.py      # Public API façade
+  utils/               # Helpers (image processing, LaTeX formatting)
 test/
   test_services/       # Unit tests for business logic
   test_utils/          # Unit tests for utilities
@@ -205,13 +217,12 @@ test/
 
 ### Dependencies Policy
 
-- Minimize external dependencies — this is a desktop app
-- Current deps: `requests`, `pillow` (PIL)
-- Prefer stdlib when possible (e.g., `tkinter` over heavier GUI frameworks)
+- Minimize external dependencies — this is a web application
+- Current deps: `fastapi`, `uvicorn`, `httpx`, `pillow`, `sqlmodel`, `python-docx`, `pdfplumber`, `jinja2`
+- Prefer stdlib when possible
 - When adding a dep, update `requirements.txt` and document the reason
 
 ### Security Notes
 
 - API keys must come from environment variables, never committed to git
-- The current codebase has a hardcoded API key in `backend/main.py` — this must be removed
 - Add `.env` to `.gitignore` if using dotenv for local config
