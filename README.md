@@ -147,14 +147,6 @@ chore:    构建、依赖等杂项
 
 分支命名建议：`feature/xxx`、`fix/xxx`、`docs/xxx`
 
-### 私有 GitLab（SSH）
-
-项目通用的 GitLab SSH 认证流程已整理在：
-
-- [`.ethan/项目上手指南.md`](./.ethan/项目上手指南.md)
-
-该说明为团队通用操作指引（非本项目特定仓库地址）。
-
 ## 安全须知
 
 - 严禁在源码中硬编码 API Key
