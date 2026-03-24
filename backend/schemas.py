@@ -43,21 +43,38 @@ class QuestionOut(BaseModel):
     created_at: str
 
 
+class QuestionBulkDeleteRequest(BaseModel):
+    ids: list[int]
+
+
 # ── Document Upload ──────────────────────────────────────────────────────
 
 
 class ParsedQuestion(BaseModel):
+    sequence_no: int | None = None
     content: str
     question_type: str
     standard_answer: str | None = None
+    source_file: str | None = None
+
+
+class ParsedDocumentBundle(BaseModel):
+    normalized_name: str
+    status: str
+    exam_file: str | None = None
+    answer_file: str | None = None
+    questions: list[ParsedQuestion] = []
+    answer_questions: list[ParsedQuestion] = []
 
 
 class DocumentParseResponse(BaseModel):
     filename: str
     questions: list[ParsedQuestion]
     count: int
+    bundles: list[ParsedDocumentBundle] = []
 
 
 class DocumentConfirmRequest(BaseModel):
     questions: list[ParsedQuestion]
     source_file: str = ""
+    bundles: list[ParsedDocumentBundle] = []
