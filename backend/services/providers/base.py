@@ -34,9 +34,14 @@ class LLMProvider(ABC):
     # -- Shared OpenAI-compatible implementation -----------------------------
 
     def _headers(self) -> dict[str, str]:
+        key = self.api_key
+        if not key:
+            raise ValueError(
+                "LLM API key 未配置。请设置环境变量 LLM_API_KEY（或 OPENAI_API_KEY）后重试。"
+            )
         return {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}",
+            "Authorization": f"Bearer {key}",
         }
 
     def _completions_url(self) -> str:
