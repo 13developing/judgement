@@ -18,6 +18,57 @@ class Question(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class ExamDocument(SQLModel, table=True):
+    """Uploaded exam-paper document metadata."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    filename: str
+    normalized_name: str
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class AnswerDocument(SQLModel, table=True):
+    """Uploaded answer document metadata."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    filename: str
+    normalized_name: str
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class ExamAnswerMapping(SQLModel, table=True):
+    """Filename-based mapping between exam and answer documents."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    normalized_name: str
+    status: str
+    exam_document_id: int | None = Field(default=None, foreign_key="examdocument.id")
+    answer_document_id: int | None = Field(default=None, foreign_key="answerdocument.id")
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class ExamQuestionItem(SQLModel, table=True):
+    """Question items extracted from an exam document."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    exam_document_id: int = Field(foreign_key="examdocument.id")
+    sequence_no: int
+    content: str
+    question_type: str
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class AnswerQuestionItem(SQLModel, table=True):
+    """Question-answer items extracted from an answer document."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    answer_document_id: int = Field(foreign_key="answerdocument.id")
+    sequence_no: int
+    content: str
+    question_type: str
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 class JudgeResult(SQLModel, table=True):
     """A single grading record."""
 

@@ -1,23 +1,23 @@
-"""Parse Word (.docx) and PDF files to extract question-answer pairs."""
+"""Extract raw text from Word/PDF documents."""
 
 from __future__ import annotations
 
+import base64
+import io
 import re
+import unicodedata
 from pathlib import Path
 
-
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
+from backend.services.llm_client import chat_with_image
 
 
-def parse_document(file_path: str) -> list[dict]:
-    """Dispatch to the correct parser based on file extension."""
+async def extract_document_text(file_path: str) -> str:
+    """Extract raw text from a document, using OCR fallback for PDFs."""
     ext = Path(file_path).suffix.lower()
     if ext == ".docx":
-        return _parse_docx(file_path)
+        return _extract_docx_text(file_path)
     if ext == ".pdf":
-        return _parse_pdf(file_path)
+        return await _extract_pdf_text(file_path)
     raise ValueError(f"不支持的文件类型：{ext}")
 
 
@@ -26,15 +26,14 @@ def parse_document(file_path: str) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def _parse_docx(file_path: str) -> list[dict]:
+def _extract_docx_text(file_path: str) -> str:
     import docx  # python-docx
 
     doc = docx.Document(file_path)
-    full_text = "\n".join(p.text.strip() for p in doc.paragraphs if p.text.strip())
-    return _extract_qa_pairs(full_text)
+    return "\n".join(p.text.strip() for p in doc.paragraphs if p.text.strip())
 
 
-def _parse_pdf(file_path: str) -> list[dict]:
+async def _extract_pdf_text(file_path: str) -> str:
     import pdfplumber
 
     pages: list[str] = []
@@ -43,73 +42,65 @@ def _parse_pdf(file_path: str) -> list[dict]:
             text = page.extract_text()
             if text:
                 pages.append(text)
-    return _extract_qa_pairs("\n".join(pages))
+
+    merged_text = "\n".join(pages).strip()
+    if merged_text and not _looks_garbled(merged_text):
+        return merged_text
+
+    llm_text = await _parse_pdf_with_llm(file_path)
+    if llm_text.strip():
+        return llm_text
+
+    return merged_text
 
 
-# ---------------------------------------------------------------------------
-# Question-answer extraction
-# ---------------------------------------------------------------------------
-
-# Matches common numbering: "1." / "1、" / "（1）" / "(1)" / "第1题"
-_NUM_PATTERN = re.compile(
-    r"(?:^|\n)\s*(?:"
-    r"(\d+)\s*[.、．]"
-    r"|[（(]\s*(\d+)\s*[）)]"
-    r"|第\s*(\d+)\s*题"
-    r")",
-)
-
-_ANSWER_PATTERN = re.compile(
-    r"\n\s*(?:答案|参考答案|解答|解|答)\s*[:：]\s*",
-)
+def _looks_garbled(text: str) -> bool:
+    suspicious_count = sum(
+        1
+        for ch in text
+        if ch == "\ufffd" or unicodedata.category(ch) == "Co"
+    )
+    if suspicious_count >= 3:
+        return True
+    if not text:
+        return False
+    return suspicious_count / max(len(text), 1) > 0.01
 
 
-def _extract_qa_pairs(text: str) -> list[dict]:
-    """Split raw text into question-answer dicts."""
-    # Find all split positions
-    matches = list(_NUM_PATTERN.finditer(text))
-    if not matches:
-        # Fallback: treat the entire text as one question
-        return [
-            {
-                "content": text.strip(),
-                "question_type": _guess_type(text),
-                "standard_answer": None,
-            }
-        ]
+async def _parse_pdf_with_llm(file_path: str) -> str:
+    import pdfplumber
 
-    results: list[dict] = []
-    for idx, m in enumerate(matches):
-        start = m.end()
-        end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
-        body = text[start:end].strip()
+    rendered_pages: list[str] = []
+    with pdfplumber.open(file_path) as pdf:
+        for page in pdf.pages[:8]:
+            page_image = page.to_image(resolution=144).original.convert("RGB")
+            rendered_pages.append(_image_to_base64(page_image))
 
-        # Try to separate answer from question body
-        answer: str | None = None
-        ans_match = _ANSWER_PATTERN.search(body)
-        if ans_match:
-            answer = body[ans_match.end() :].strip() or None
-            body = body[: ans_match.start()].strip()
+    page_texts: list[str] = []
+    for idx, image_base64 in enumerate(rendered_pages, start=1):
+        raw = await chat_with_image(
+            system_prompt=(
+                "你是一名试卷文本整理助手。请忠实转写图片中的中文、数学题面和答案内容。"
+                "只输出纯文本，不要加解释，不要使用 markdown 代码块。"
+                "如果出现数学公式，必须输出为可直接被 KaTeX 渲染的 LaTeX。"
+            ),
+            user_prompt=(
+                f"请按阅读顺序转写第 {idx} 页内容。保留题号、换行，以及“答案：”“解：”等标记。"
+                "若存在数学公式，统一使用  或  包裹的规范 LaTeX，不要输出 、、 这类普通文本公式。"
+            ),
+            image_base64=image_base64,
+            max_tokens=3000,
+        )
+        cleaned = raw.strip()
+        if cleaned.startswith("```"):
+            cleaned = re.sub(r"^```(?:text)?\s*\n?", "", cleaned)
+            cleaned = re.sub(r"\n?```\s*$", "", cleaned)
+        page_texts.append(cleaned)
 
-        if body:
-            results.append(
-                {
-                    "content": body,
-                    "question_type": _guess_type(body),
-                    "standard_answer": answer,
-                }
-            )
-
-    return results
+    return "\n\n".join(page_texts)
 
 
-def _guess_type(text: str) -> str:
-    fill_kw = ("填空", "____", "___", "（  ）", "(  )")
-    calc_kw = ("求", "计算", "证明", "解方程", "积分", "微分", "极限", "求解", "求导")
-    for kw in fill_kw:
-        if kw in text:
-            return "fill_blank"
-    for kw in calc_kw:
-        if kw in text:
-            return "calculation"
-    return "short_answer"
+def _image_to_base64(image) -> str:
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    return base64.b64encode(buf.getvalue()).decode("utf-8")

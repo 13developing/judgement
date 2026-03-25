@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import uuid
 from pathlib import Path
@@ -68,6 +69,40 @@ def _save_record(
     session.commit()
 
 
+def _recognized_as_blank(recognized_content: str) -> bool:
+    normalized = (recognized_content or "").replace(" ", "")
+    return "学生作答：空白" in normalized or "学生作答：未作答" in normalized
+
+
+def _recognized_has_answer_work(recognized_content: str) -> bool:
+    content = recognized_content or ""
+    match = re.search(r"学生作答[：:](.*)", content, re.S)
+    if not match:
+        return False
+    answer_part = match.group(1).strip()
+    if not answer_part:
+        return False
+    blank_markers = ("空白", "未作答", "未填写", "未答")
+    if any(marker in answer_part for marker in blank_markers):
+        return False
+    return True
+
+
+def _force_blank_result(result: dict) -> dict:
+    fixed = dict(result)
+    fixed["judgment"] = "wrong"
+    fixed["score"] = 0
+    fixed["explanation"] = "图片中学生未填写答案，判为未作答，不应按标准答案给分。"
+    if fixed.get("steps"):
+        fixed["steps"] = []
+    return fixed
+
+
+def _prepend_explanation(explanation: str, prefix: str) -> str:
+    explanation = explanation or ""
+    return f"{prefix}\n\n{explanation}" if explanation else prefix
+
+
 # ── POST /api/judge ──────────────────────────────────────────────────────
 
 
@@ -80,7 +115,19 @@ async def judge_exam(
     """Upload an image with an optional standard answer and get a grading result."""
     dest = _save_upload(image)
     img_b64 = compress_and_encode(str(dest))
-    result = await grade_image(img_b64, standard_answer or None)
+    first_pass_result = await grade_image(img_b64)
+    result = first_pass_result
+    if standard_answer:
+        result = await grade_image(img_b64, standard_answer)
+        first_recognized = first_pass_result.get("recognized_content", "")
+        second_recognized = result.get("recognized_content", "")
+        result["recognized_content"] = second_recognized if _recognized_has_answer_work(second_recognized) else first_recognized
+        if _recognized_as_blank(first_recognized) and not _recognized_has_answer_work(second_recognized):
+            result = _force_blank_result(result)
+        result["explanation"] = _prepend_explanation(
+            result.get("explanation", ""),
+            f"手动输入标准答案：{standard_answer}（综合点评与评分均以手动输入为主；若模型判断不同，会在下文说明差异）",
+        )
     _save_record(session, result, str(dest), standard_answer=standard_answer)
     return _to_response(result)
 
@@ -98,15 +145,30 @@ async def judge_with_bank(
     img_b64 = compress_and_encode(str(dest))
 
     # First pass: recognise content without answer
-    result = await grade_image(img_b64)
+    first_pass_result = await grade_image(img_b64)
+    result = first_pass_result
 
     # Try to match to question bank
-    matched = find_matching_question(session, result.get("recognized_content", ""))
+    matched = await find_matching_question(session, result.get("recognized_content", ""))
     std_answer: str | None = None
     if matched and matched.standard_answer:
         std_answer = matched.standard_answer
         # Second pass: re-grade with the matched standard answer
         result = await grade_image(img_b64, std_answer)
+        first_recognized = first_pass_result.get("recognized_content", "")
+        second_recognized = result.get("recognized_content", "")
+        result["recognized_content"] = second_recognized if _recognized_has_answer_work(second_recognized) else first_recognized
+        if _recognized_as_blank(first_recognized) and not _recognized_has_answer_work(second_recognized):
+            result = _force_blank_result(result)
+        result["explanation"] = _prepend_explanation(
+            result.get("explanation", ""),
+            f"题库标准答案：{std_answer}",
+        )
+    else:
+        result["explanation"] = _prepend_explanation(
+            result.get("explanation", ""),
+            "未在题库中搜索到可用标准答案。",
+        )
 
     _save_record(
         session,

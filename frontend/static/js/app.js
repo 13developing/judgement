@@ -8,7 +8,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const modeRadios = document.getElementsByName('judge_mode');
     const manualAnswerGroup = document.getElementById('manual-answer-group');
 
-    // UI Elements for result
     const resultPlaceholder = document.getElementById('result-placeholder');
     const resultContent = document.getElementById('result-content');
     const resScore = document.getElementById('res-score');
@@ -19,22 +18,58 @@ document.addEventListener('DOMContentLoaded', () => {
     const resExplanation = document.getElementById('res-explanation');
     const resStepsContainer = document.getElementById('res-steps-container');
     const resStepsTableBody = document.querySelector('#res-steps-table tbody');
+    const uploadText = uploadArea.querySelector('.upload-text');
+    const uploadHint = uploadArea.querySelector('.upload-hint');
+    const resultSummary = document.querySelector('.result-summary');
 
-    // Image preview
+    function setResultTone(tone) {
+        resultSummary.classList.remove('is-excellent', 'is-partial', 'is-empty');
+        resultSummary.classList.add(tone);
+    }
+
+    function normalizeDisplayText(text) {
+        if (!text) return '';
+        return text
+            .replace(/^[\s\x00-\x1f]+|[\s\x00-\x1f]+$/g, '')
+            .replace(/\\\(\s*(?:\\+|_+)?\s*\\\)/g, '(    )')
+            .replace(/（\s*(?:\\+|_+)\s*）/g, '（    ）')
+            .replace(/\(\s*\\+\s*\)/g, '(    )')
+            .replace(/(^|\n)\s*[。.;；,，、•·◦○●▪▫■□◆◇]\s*(?=题目[：:]|学生作答[：:]|综合点评[：:])/g, '$1')
+            .replace(/(^|\n)\s*[。.;；,，、•·◦○●▪▫■□◆◇]+\s*(?=\n|$)/g, '$1')
+            .replace(/(^|\n)\s*[。.;；,，、•·◦○●▪▫■□◆◇]+\s*(?=学生作答[：:])/g, '$1')
+            .replace(/\s+学生作答[：:]/g, '\n\n学生作答：')
+            .replace(/\n{3,}/g, '\n\n');
+    }
+
+    function renderMath() {
+        if (window.renderMathInElement) {
+            renderMathInElement(document.getElementById('result-content'), {
+                delimiters: [
+                    { left: '$$', right: '$$', display: true },
+                    { left: '\\[', right: '\\]', display: true },
+                    { left: '$', right: '$', display: false },
+                    { left: '\\(', right: '\\)', display: false }
+                ],
+                throwOnError: false
+            });
+        }
+    }
+
     imageInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                imagePreview.src = e.target.result;
-                imagePreview.style.display = 'block';
-                uploadArea.style.padding = '20px';
-            }
-            reader.readAsDataURL(file);
-        }
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(loadEvent) {
+            imagePreview.src = loadEvent.target.result;
+            imagePreview.classList.add('is-visible');
+            uploadArea.classList.add('has-file');
+            uploadText.textContent = file.name;
+            uploadHint.textContent = '已完成选择，可直接提交判题';
+        };
+        reader.readAsDataURL(file);
     });
 
-    // Drag and drop
     uploadArea.addEventListener('dragover', (e) => {
         e.preventDefault();
         uploadArea.classList.add('dragover');
@@ -53,8 +88,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Toggle manual answer textarea
-    modeRadios.forEach(radio => {
+    modeRadios.forEach((radio) => {
         radio.addEventListener('change', (e) => {
             if (e.target.value === 'manual') {
                 manualAnswerGroup.classList.remove('hidden');
@@ -64,25 +98,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    function renderMath() {
-        if (window.renderMathInElement) {
-            renderMathInElement(document.getElementById('result-content'), {
-                delimiters: [
-                    {left: "$$", right: "$$", display: true},
-                    {left: "\\[", right: "\\]", display: true},
-                    {left: "$", right: "$", display: false},
-                    {left: "\\(", right: "\\)", display: false}
-                ],
-                throwOnError: false
-            });
-        }
-    }
-
-    // Form submission
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         errorMsg.classList.add('hidden');
-        
+
         if (!imageInput.files.length) {
             errorMsg.textContent = '请先上传答卷图片';
             errorMsg.classList.remove('hidden');
@@ -91,10 +110,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const mode = document.querySelector('input[name="judge_mode"]:checked').value;
         const url = mode === 'manual' ? '/api/judge' : '/api/judge/with-bank';
-        
+
         const formData = new FormData();
         formData.append('image', imageInput.files[0]);
-        
+
         if (mode === 'manual') {
             const stdAnswer = document.getElementById('standard-answer').value;
             if (stdAnswer) {
@@ -117,8 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const data = await response.json();
-            
-            // Render results
+
             resultPlaceholder.classList.add('hidden');
             resultContent.classList.remove('hidden');
 
@@ -126,31 +144,35 @@ document.addEventListener('DOMContentLoaded', () => {
             resTotal.textContent = data.total_score ?? '100';
             resType.textContent = data.question_type || '未知题型';
             resJudgment.textContent = data.judgment || (data.score > 0 ? '得分' : '不得分');
-            
-            // Set colors based on judgment
+
             if (data.score === data.total_score && data.total_score > 0) {
                 resJudgment.style.color = 'var(--success)';
+                setResultTone('is-excellent');
             } else if (data.score === 0) {
                 resJudgment.style.color = 'var(--error)';
+                setResultTone('is-empty');
             } else {
                 resJudgment.style.color = 'var(--accent)';
+                setResultTone('is-partial');
             }
 
-            resRecognized.textContent = data.recognized_content || '未识别出内容';
-            resExplanation.textContent = data.explanation || '无详细点评';
+            resRecognized.textContent = normalizeDisplayText(data.recognized_content) || '未识别出内容';
+            resExplanation.textContent = normalizeDisplayText(data.explanation) || '无详细点评';
 
-            // Steps
             if (data.steps && data.steps.length > 0) {
                 resStepsContainer.classList.remove('hidden');
                 resStepsTableBody.innerHTML = '';
                 data.steps.forEach((step, idx) => {
                     const tr = document.createElement('tr');
-                    const statusClass = step.status === '✓' ? 'status-check' : (step.status === '✗' ? 'status-cross' : '');
+                    const statusClass = step.status === '✓'
+                        ? 'status-check'
+                        : (step.status === '✗' ? 'status-cross' : '');
+
                     tr.innerHTML = `
                         <td>步骤 ${idx + 1}</td>
                         <td>${step.score || 0}</td>
                         <td class="${statusClass}">${step.status || '-'}</td>
-                        <td>${step.comment || '-'}</td>
+                        <td>${normalizeDisplayText(step.comment) || '-'}</td>
                     `;
                     resStepsTableBody.appendChild(tr);
                 });
@@ -158,12 +180,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 resStepsContainer.classList.add('hidden');
             }
 
-            // Render math formulas
             renderMath();
-
         } catch (error) {
             errorMsg.textContent = `判题出错: ${error.message}`;
             errorMsg.classList.remove('hidden');
+            setResultTone('is-empty');
         } finally {
             submitBtn.disabled = false;
             submitBtn.classList.remove('loading');
