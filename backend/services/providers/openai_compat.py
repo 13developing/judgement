@@ -18,12 +18,12 @@ class OpenAICompatProvider(LLMProvider):
 
     @property
     def api_key(self) -> str:
-        return LLM_API_KEY
+        return self._override_api_key or LLM_API_KEY
 
     @property
     def base_url(self) -> str:
-        return LLM_BASE_URL or _DEFAULT_BASE_URL
+        return self._override_base_url or LLM_BASE_URL or _DEFAULT_BASE_URL
 
     @property
     def model(self) -> str:
-        return LLM_MODEL or _DEFAULT_MODEL
+        return self._override_model or LLM_MODEL or _DEFAULT_MODEL

@@ -15,7 +15,23 @@ class LLMProvider(ABC):
     which is shared by most major providers (OpenAI, Volcengine Ark, etc.).
     Override ``chat_with_image`` / ``chat_text`` if a provider requires a
     non-standard request format.
+
+    Subclasses may be instantiated with explicit ``api_key``, ``base_url``,
+    and ``model`` keyword arguments.  When given, those values take priority
+    over environment-variable defaults so that DB-managed configurations can
+    override ``.env`` settings at runtime.
     """
+
+    def __init__(
+        self,
+        *,
+        api_key: str = "",
+        base_url: str = "",
+        model: str = "",
+    ) -> None:
+        self._override_api_key = api_key
+        self._override_base_url = base_url
+        self._override_model = model
 
     # -- Subclasses MUST implement these properties --------------------------
 

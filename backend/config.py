@@ -23,6 +23,7 @@ DATABASE_PATH = DATA_DIR / "db.sqlite"
 # ---------------------------------------------------------------------------
 # Supported values: "ark" (豆包，primary), "openai" (OpenAI-compatible, fallback)
 # The OPENAI_* env vars are kept as fallback aliases for backward compatibility.
+# These values are used as fallback when no DB-managed ProviderConfig is active.
 LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "ark")
 
 LLM_API_KEY: str = os.getenv(
@@ -42,3 +43,11 @@ LLM_MODEL: str = os.getenv(
 # Database
 # ---------------------------------------------------------------------------
 DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite:///{DATABASE_PATH}")
+
+# ---------------------------------------------------------------------------
+# Encryption (for storing API keys in the database)
+# ---------------------------------------------------------------------------
+# Set ENCRYPTION_KEY to a Fernet key (base64-encoded 32 bytes).
+# If not set, a temporary key is generated automatically at startup.
+# To generate a permanent key:  python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+ENCRYPTION_KEY: str = os.getenv("ENCRYPTION_KEY", "")

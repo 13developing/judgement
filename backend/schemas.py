@@ -78,3 +78,43 @@ class DocumentConfirmRequest(BaseModel):
     questions: list[ParsedQuestion]
     source_file: str = ""
     bundles: list[ParsedDocumentBundle] = []
+
+
+# ── Provider Config ──────────────────────────────────────────────────────
+
+
+class ProviderConfigCreate(BaseModel):
+    name: str
+    provider_type: str  # "ark" | "openai"
+    api_key: str
+    base_url: str = ""
+    model: str = ""
+
+
+class ProviderConfigUpdate(BaseModel):
+    name: str | None = None
+    provider_type: str | None = None
+    api_key: str | None = None  # only sent when user changes key
+    base_url: str | None = None
+    model: str | None = None
+
+
+class ProviderConfigOut(BaseModel):
+    id: int
+    name: str
+    provider_type: str
+    api_key_masked: str  # e.g. "sk-ab****yz"
+    base_url: str
+    model: str
+    is_active: bool
+    created_at: str
+    updated_at: str
+
+
+class ProviderTestRequest(BaseModel):
+    """Inline test — caller provides credentials directly (no DB row required)."""
+
+    provider_type: str
+    api_key: str
+    base_url: str = ""
+    model: str = ""

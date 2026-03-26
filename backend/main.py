@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.config import UPLOAD_DIR
 from backend.database import init_db
-from backend.routers import judge, question_bank, upload
+from backend.routers import judge, provider, question_bank, upload
 
 _FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
@@ -36,6 +36,7 @@ app = FastAPI(
 app.include_router(judge.router)
 app.include_router(question_bank.router)
 app.include_router(upload.router)
+app.include_router(provider.router)
 
 # ── Static files ─────────────────────────────────────────────────────────
 if (_FRONTEND_DIR / "static").exists():
@@ -56,3 +57,8 @@ async def index_page() -> FileResponse:
 @app.get("/bank")
 async def bank_page() -> FileResponse:
     return FileResponse(str(_FRONTEND_DIR / "bank.html"))
+
+
+@app.get("/settings")
+async def settings_page() -> FileResponse:
+    return FileResponse(str(_FRONTEND_DIR / "settings.html"))

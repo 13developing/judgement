@@ -43,7 +43,9 @@ class ExamAnswerMapping(SQLModel, table=True):
     normalized_name: str
     status: str
     exam_document_id: int | None = Field(default=None, foreign_key="examdocument.id")
-    answer_document_id: int | None = Field(default=None, foreign_key="answerdocument.id")
+    answer_document_id: int | None = Field(
+        default=None, foreign_key="answerdocument.id"
+    )
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -84,3 +86,22 @@ class JudgeResult(SQLModel, table=True):
     matched_question_id: int | None = None
     standard_answer_used: str | None = None
     created_at: datetime = Field(default_factory=datetime.now)
+
+
+class ProviderConfig(SQLModel, table=True):
+    """User-managed LLM provider configuration.
+
+    API keys are stored encrypted via Fernet.  Only one provider may be
+    ``is_active=True`` at a time; the active provider is used for all LLM
+    calls.  When no row is active the system falls back to ``.env`` values.
+    """
+
+    id: int | None = Field(default=None, primary_key=True)
+    name: str
+    provider_type: str  # "ark" | "openai"
+    api_key_encrypted: str  # Fernet token
+    base_url: str = ""
+    model: str = ""
+    is_active: bool = Field(default=False)
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)

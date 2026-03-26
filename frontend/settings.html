@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统设置 - 大学智能判题系统</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+
+    <script defer src="/static/js/settings.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <a href="/" class="nav-brand">大学智能判题系统</a>
+        <div class="nav-links">
+            <a href="/">智能判题</a>
+            <a href="/bank">题库管理</a>
+            <a href="/settings" class="active">系统设置</a>
+        </div>
+    </nav>
+
+    <main class="container page-shell settings-page">
+        <header class="page-header page-header-featured">
+            <div class="page-intro">
+                <p class="page-eyebrow">系统设置</p>
+                <h1 class="page-title">管理模型服务商，让 AI 能力随时可调可控</h1>
+                <p class="page-description">配置 LLM Provider 的 API Key、接口地址与模型参数，支持多配置切换与连接测试。</p>
+            </div>
+            <div class="page-aside">
+                <div class="info-chip">多 Provider</div>
+                <div class="info-chip">加密存储</div>
+                <div class="info-chip">热切换</div>
+            </div>
+        </header>
+
+        <section class="settings-actions">
+            <div class="panel settings-panel">
+                <div class="card-title">
+                    <span>Provider 配置</span>
+                    <div class="table-actions">
+                        <button type="button" id="add-provider-btn" class="btn btn-primary">+ 添加 Provider</button>
+                    </div>
+                </div>
+
+                <div id="provider-list" class="provider-list">
+                    <div class="provider-empty state-message">加载中...</div>
+                </div>
+
+                <div class="provider-env-hint">
+                    <strong>环境变量兜底</strong>：未启用任何 Provider 配置时，系统自动使用 .env 文件中的 LLM_API_KEY / LLM_PROVIDER 等环境变量。
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="provider-modal-backdrop" class="provider-modal-backdrop hidden"></div>
+    <div id="provider-modal" class="provider-modal hidden" role="dialog" aria-labelledby="modal-title">
+        <div class="provider-modal-header">
+            <span id="modal-title" class="provider-modal-title">添加 Provider</span>
+            <button type="button" id="modal-close-btn" class="math-preview-close" aria-label="关闭">关闭</button>
+        </div>
+        <form id="provider-form" class="provider-modal-body">
+            <div class="form-group">
+                <label class="form-label" for="pf-name">名称</label>
+                <input type="text" id="pf-name" placeholder="例如：豆包主力、OpenAI 备用" required>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="pf-type">Provider 类型</label>
+                <select id="pf-type" required>
+                    <option value="ark">豆包 Ark</option>
+                    <option value="openai">OpenAI 兼容</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="pf-api-key">API Key</label>
+                <input type="password" id="pf-api-key" placeholder="sk-..." autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="pf-base-url">接口地址 (Base URL)</label>
+                <input type="text" id="pf-base-url" placeholder="">
+                <small class="form-hint" id="pf-base-url-hint">留空使用默认值</small>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="pf-model">模型 (Model)</label>
+                <input type="text" id="pf-model" placeholder="">
+                <small class="form-hint" id="pf-model-hint">留空使用默认值</small>
+            </div>
+            <div id="modal-error" class="state-message error-message hidden"></div>
+            <div class="provider-modal-footer">
+                <button type="button" id="modal-cancel-btn" class="btn btn-outline">取消</button>
+                <button type="button" id="modal-test-btn" class="btn btn-outline">
+                    <span class="spinner"></span>
+                    <span class="btn-text">测试连接</span>
+                </button>
+                <button type="submit" id="modal-save-btn" class="btn btn-primary">
+                    <span class="spinner"></span>
+                    <span class="btn-text">保存</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</body>
+</html>
