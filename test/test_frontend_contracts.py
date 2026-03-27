@@ -17,7 +17,7 @@ class FrontendContractTests(unittest.TestCase):
     def test_judge_page_keeps_runtime_hooks_and_gains_shell(self) -> None:
         required = [
             'class="container page-shell judge-page"',
-            'class="page-header"',
+            'class="page-header page-header-featured"',
             'class="workspace judge-workspace"',
             'class="panel judge-panel judge-input-panel"',
             'class="panel judge-panel judge-result-panel"',
@@ -40,15 +40,15 @@ class FrontendContractTests(unittest.TestCase):
             'id="standard-answer"',
             'name="judge_mode"',
             'id="res-steps-table"',
-            'katex.min.css',
-            'auto-render.min.js',
+            "katex.min.css",
+            "auto-render.min.js",
         ]
         self.assertEqual([], missing_tokens(INDEX_HTML, required))
 
     def test_bank_page_keeps_runtime_hooks_and_gains_shell(self) -> None:
         required = [
             'class="container page-shell bank-page"',
-            'class="page-header"',
+            'class="page-header page-header-featured"',
             'class="bank-actions"',
             'class="panel import-panel"',
             'class="panel bank-data-panel"',
@@ -72,27 +72,27 @@ class FrontendContractTests(unittest.TestCase):
             'id="preview-table"',
             'id="bank-table"',
             'class="btn btn-danger delete-btn"',
-            'katex.min.css',
-            'auto-render.min.js',
+            "katex.min.css",
+            "auto-render.min.js",
         ]
         self.assertEqual([], missing_tokens(BANK_HTML, required))
 
     def test_shared_css_contains_base_layout_contracts(self) -> None:
         required = [
-            '--success',
-            '--error',
-            '--accent',
-            '--text-secondary',
-            '.hidden',
-            '.loading .spinner',
-            '.upload-area.dragover',
-            '.page-shell',
-            '.page-header',
-            '.workspace',
-            '.panel',
-            '.page-eyebrow',
-            '.page-title',
-            '.page-description',
+            "--success",
+            "--error",
+            "--accent",
+            "--text-secondary",
+            ".hidden",
+            ".loading .spinner",
+            ".upload-area.dragover",
+            ".page-shell",
+            ".page-header",
+            ".workspace",
+            ".panel",
+            ".page-eyebrow",
+            ".page-title",
+            ".page-description",
         ]
         self.assertEqual([], missing_tokens(STYLE_CSS, required))
 
@@ -116,7 +116,7 @@ class FrontendContractTests(unittest.TestCase):
         self.assertEqual([], missing_tokens(INDEX_HTML, required))
 
     def test_judge_page_has_no_inline_styles(self) -> None:
-        self.assertNotIn('style=', INDEX_HTML)
+        self.assertNotIn("style=", INDEX_HTML)
 
     def test_bank_page_uses_management_sections(self) -> None:
         required = [
@@ -140,26 +140,26 @@ class FrontendContractTests(unittest.TestCase):
         self.assertEqual([], missing_tokens(BANK_HTML, required))
 
     def test_bank_page_has_no_inline_styles(self) -> None:
-        self.assertNotIn('style=', BANK_HTML)
+        self.assertNotIn("style=", BANK_HTML)
 
     def test_shared_css_contains_final_state_and_responsive_rules(self) -> None:
         required = [
-            '.result-placeholder.state-message',
-            '.preview-panel',
-            '.result-section.table-panel',
-            '.navbar',
-            '@media (max-width: 960px)',
-            '@media (max-width: 768px)',
-            '--success',
-            '--error',
-            '--accent',
-            '--text-secondary',
-            '.hidden',
-            '.loading .spinner',
-            '.upload-area.dragover',
+            ".result-placeholder.state-message",
+            ".preview-panel",
+            ".result-section.table-panel",
+            ".navbar",
+            "@media (max-width: 960px)",
+            "@media (max-width: 768px)",
+            "--success",
+            "--error",
+            "--accent",
+            "--text-secondary",
+            ".hidden",
+            ".loading .spinner",
+            ".upload-area.dragover",
         ]
         self.assertEqual([], missing_tokens(STYLE_CSS, required))
 
 
 if __name__ == "__main__":
-    unittest.main()
+    _ = unittest.main()

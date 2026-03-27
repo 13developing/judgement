@@ -43,9 +43,7 @@ class ExamAnswerMapping(SQLModel, table=True):
     normalized_name: str
     status: str
     exam_document_id: int | None = Field(default=None, foreign_key="examdocument.id")
-    answer_document_id: int | None = Field(
-        default=None, foreign_key="answerdocument.id"
-    )
+    answer_document_id: int | None = Field(default=None, foreign_key="answerdocument.id")
     created_at: datetime = Field(default_factory=datetime.now)
 
 

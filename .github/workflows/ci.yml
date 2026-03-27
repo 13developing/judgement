@@ -1,0 +1,34 @@
+name: CI
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install ruff
+
+      - name: Lint
+        run: |
+          ruff check backend/
+          ruff format --check backend/
+
+      - name: Test
+        run: pytest test/ -v --tb=short
+        env:
+          LLM_API_KEY: "test-key-for-ci"

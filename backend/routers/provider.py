@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any, cast
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
@@ -17,6 +18,7 @@ from backend.schemas import (
     ProviderTestRequest,
 )
 from backend.services.encryption import decrypt, encrypt, mask_key
+from backend.services.http_client import get_http_client
 from backend.services.providers import invalidate_cache
 
 router = APIRouter(prefix="/api/providers", tags=["Provider 管理"])
@@ -41,9 +43,13 @@ _VALID_TYPES = set(_PROVIDER_DEFAULTS)
 
 def _row_to_out(row: ProviderConfig) -> ProviderConfigOut:
     """Convert a DB row to a public response object (key masked)."""
+    provider_id = row.id
+    if provider_id is None:
+        raise HTTPException(status_code=500, detail="Provider 配置数据异常：缺少 ID")
+
     plain_key = decrypt(row.api_key_encrypted)
     return ProviderConfigOut(
-        id=row.id,  # type: ignore[arg-type]
+        id=provider_id,
         name=row.name,
         provider_type=row.provider_type,
         api_key_masked=mask_key(plain_key),
@@ -89,10 +95,10 @@ async def _test_provider_connection(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(url, headers=headers, json=payload)
-            resp.raise_for_status()
-            return {"status": "ok", "model": model}
+        client = get_http_client()
+        resp = await client.post(url, headers=headers, json=payload)
+        resp.raise_for_status()
+        return {"status": "ok", "model": model}
     except httpx.HTTPStatusError as exc:
         detail = exc.response.text[:300] if exc.response else str(exc)
         raise HTTPException(
@@ -142,7 +148,7 @@ def list_providers(
     session: Session = Depends(get_session),
 ) -> list[ProviderConfigOut]:
     """List all provider configurations (API keys masked)."""
-    rows = session.exec(select(ProviderConfig).order_by(ProviderConfig.id)).all()
+    rows = session.exec(select(ProviderConfig).order_by(cast(Any, ProviderConfig.id))).all()
     return [_row_to_out(r) for r in rows]
 
 

@@ -55,11 +55,7 @@ async def _extract_pdf_text(file_path: str) -> str:
 
 
 def _looks_garbled(text: str) -> bool:
-    suspicious_count = sum(
-        1
-        for ch in text
-        if ch == "\ufffd" or unicodedata.category(ch) == "Co"
-    )
+    suspicious_count = sum(1 for ch in text if ch == "\ufffd" or unicodedata.category(ch) == "Co")
     if suspicious_count >= 3:
         return True
     if not text:

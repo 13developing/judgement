@@ -51,3 +51,10 @@ DATABASE_URL: str = os.getenv("DATABASE_URL", f"sqlite:///{DATABASE_PATH}")
 # If not set, a temporary key is generated automatically at startup.
 # To generate a permanent key:  python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ENCRYPTION_KEY: str = os.getenv("ENCRYPTION_KEY", "")
+
+# ---------------------------------------------------------------------------
+# LLM Resilience
+# ---------------------------------------------------------------------------
+LLM_MAX_RETRIES: int = int(os.getenv("LLM_MAX_RETRIES", "3"))
+LLM_RETRY_BASE_DELAY: float = float(os.getenv("LLM_RETRY_BASE_DELAY", "1.0"))
+LLM_MAX_CONCURRENT: int = int(os.getenv("LLM_MAX_CONCURRENT", "5"))

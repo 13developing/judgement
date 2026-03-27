@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.env
+.git/
+.github/
+test/
+docs/
+*.egg-info/
+.venv/
+venv/
+data/
+.sisyphus/
+*.md
+!README.md
+pyproject.toml
+requirements-dev.txt

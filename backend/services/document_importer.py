@@ -24,16 +24,22 @@ _EXTRACT_SYSTEM_PROMPT = """你是一名大学数学题库整理助手。
 """
 
 
-async def build_import_bundles(files: list[Path], filenames: list[str]) -> tuple[str, list[ParsedQuestion], list[ParsedDocumentBundle]]:
+async def build_import_bundles(
+    files: list[Path], filenames: list[str]
+) -> tuple[str, list[ParsedQuestion], list[ParsedDocumentBundle]]:
     file_roles = await _classify_files_with_model(filenames)
     exam_files: dict[str, tuple[str, list[ParsedQuestion]]] = {}
     answer_files: dict[str, tuple[str, list[ParsedQuestion]]] = {}
 
     for file_path, filename in zip(files, filenames, strict=True):
-        role_info = file_roles.get(filename, {"role": "exam", "group_key": _normalize_doc_name(filename)})
+        role_info = file_roles.get(
+            filename, {"role": "exam", "group_key": _normalize_doc_name(filename)}
+        )
         is_answer = role_info["role"] == "answer"
         raw_text = await extract_document_text(str(file_path))
-        parsed_questions = await _extract_questions_with_model(raw_text, is_answer=is_answer, filename=filename)
+        parsed_questions = await _extract_questions_with_model(
+            raw_text, is_answer=is_answer, filename=filename
+        )
         normalized_name = role_info["group_key"]
         if is_answer:
             answer_files[normalized_name] = (filename, parsed_questions)
@@ -52,7 +58,9 @@ async def build_import_bundles(files: list[Path], filenames: list[str]) -> tuple
         if normalized_name in answer_files:
             answer_name, answer_questions = answer_files[normalized_name]
             matched_count += 1
-            merged_questions = await _match_questions_with_model(exam_questions, answer_questions, exam_name, answer_name)
+            merged_questions = await _match_questions_with_model(
+                exam_questions, answer_questions, exam_name, answer_name
+            )
         else:
             merged_questions = [
                 ParsedQuestion(
@@ -97,7 +105,9 @@ async def build_import_bundles(files: list[Path], filenames: list[str]) -> tuple
     return summary, flattened_questions, bundles
 
 
-async def _extract_questions_with_model(raw_text: str, *, is_answer: bool, filename: str) -> list[ParsedQuestion]:
+async def _extract_questions_with_model(
+    raw_text: str, *, is_answer: bool, filename: str
+) -> list[ParsedQuestion]:
     mode = "答案文档" if is_answer else "试卷文档"
     user_prompt = (
         f"下面是{mode}的原始文本，请抽取结构化题目列表。\n"
@@ -180,8 +190,12 @@ def _parse_question_array(raw: str, *, is_answer: bool, filename: str) -> list[P
             ParsedQuestion(
                 sequence_no=_coerce_int(item.get("sequence_no")) or idx,
                 content=content,
-                question_type=_normalize_question_type(str(item.get("question_type") or "short_answer")),
-                standard_answer=str(standard_answer).strip() if standard_answer is not None else None,
+                question_type=_normalize_question_type(
+                    str(item.get("question_type") or "short_answer")
+                ),
+                standard_answer=str(standard_answer).strip()
+                if standard_answer is not None
+                else None,
                 source_file=filename,
             )
         )
@@ -246,8 +260,7 @@ async def _classify_files_with_model(filenames: list[str]) -> dict[str, dict[str
         '{"filename": "xx.pdf", "role": "exam|answer|unknown", "group_key": "同套文件键"}。\n'
         "如果无法判断 role，优先返回 exam。\n"
         "group_key 请尽量让同一套试卷和答案一致。\n\n"
-        "文件名列表：\n"
-        + "\n".join(f"- {name}" for name in filenames)
+        "文件名列表：\n" + "\n".join(f"- {name}" for name in filenames)
     )
 
     raw = await chat_text(
@@ -266,7 +279,10 @@ async def _classify_files_with_model(filenames: list[str]) -> dict[str, dict[str
         data = json.loads(cleaned)
     except json.JSONDecodeError:
         return {
-            name: {"role": "answer" if _is_answer_filename(name) else "exam", "group_key": _normalize_doc_name(name)}
+            name: {
+                "role": "answer" if _is_answer_filename(name) else "exam",
+                "group_key": _normalize_doc_name(name),
+            }
             for name in filenames
         }
 
@@ -290,7 +306,10 @@ async def _classify_files_with_model(filenames: list[str]) -> dict[str, dict[str
     for name in filenames:
         result.setdefault(
             name,
-            {"role": "answer" if _is_answer_filename(name) else "exam", "group_key": _normalize_doc_name(name)},
+            {
+                "role": "answer" if _is_answer_filename(name) else "exam",
+                "group_key": _normalize_doc_name(name),
+            },
         )
 
     return result

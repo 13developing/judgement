@@ -6,7 +6,7 @@ from collections.abc import Generator
 
 from sqlmodel import Session, SQLModel, create_engine
 
-from backend.config import DATABASE_URL, DATA_DIR
+from backend.config import DATA_DIR, DATABASE_URL
 
 engine = create_engine(DATABASE_URL, echo=False)
 

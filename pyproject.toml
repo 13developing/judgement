@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "question-judgment"
+version = "0.2.0"
+description = "基于多模态大模型的大学智能判题系统"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Proprietary"}
+authors = [
+    {name = "Team", email = "team@example.com"},
+]
+dependencies = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "sqlmodel>=0.0.14",
+    "httpx>=0.26.0",
+    "python-multipart>=0.0.6",
+    "python-docx>=1.1.0",
+    "pdfplumber>=0.10.0",
+    "pillow>=10.0.0",
+    "jinja2>=3.1.0",
+    "python-dotenv>=1.0.0",
+    "cryptography>=42.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.1.0",
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+src = ["backend"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "PLW"]
+ignore = ["E501", "B008", "SIM103"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["backend"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+asyncio_mode = "auto"
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]

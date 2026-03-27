@@ -2,9 +2,27 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
+import random
 from abc import ABC, abstractmethod
+from typing import Any
 
 import httpx
+
+from backend.config import LLM_MAX_CONCURRENT, LLM_MAX_RETRIES, LLM_RETRY_BASE_DELAY
+from backend.services.http_client import get_http_client
+from backend.services.llm_metrics import record_usage  # pyright: ignore[reportMissingImports]
+
+log = logging.getLogger(__name__)
+_semaphore: asyncio.Semaphore | None = None
+
+
+def _get_semaphore() -> asyncio.Semaphore:
+    global _semaphore  # noqa: PLW0603
+    if _semaphore is None:
+        _semaphore = asyncio.Semaphore(LLM_MAX_CONCURRENT)
+    return _semaphore
 
 
 class LLMProvider(ABC):
@@ -63,6 +81,50 @@ class LLMProvider(ABC):
     def _completions_url(self) -> str:
         return f"{self.base_url.rstrip('/')}/chat/completions"
 
+    async def _request_with_retry(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Send request with exponential backoff retry and concurrency limit."""
+        client = get_http_client()
+        sem = _get_semaphore()
+        last_exc: Exception | None = None
+
+        for attempt in range(LLM_MAX_RETRIES):
+            async with sem:
+                try:
+                    resp = await client.post(
+                        self._completions_url(),
+                        headers=self._headers(),
+                        json=payload,
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+
+                    usage = data.get("usage", {})
+                    if usage:
+                        record_usage(
+                            prompt_tokens=int(usage.get("prompt_tokens", 0) or 0),
+                            completion_tokens=int(usage.get("completion_tokens", 0) or 0),
+                            total_tokens=int(usage.get("total_tokens", 0) or 0),
+                        )
+
+                    return data
+                except (httpx.HTTPStatusError, httpx.RequestError, httpx.TimeoutException) as exc:
+                    last_exc = exc
+                    if attempt < LLM_MAX_RETRIES - 1:
+                        delay = LLM_RETRY_BASE_DELAY * (2**attempt) + random.uniform(0, 0.5)
+                        log.warning(
+                            "LLM request failed (attempt %d/%d): %s. Retrying in %.1fs...",
+                            attempt + 1,
+                            LLM_MAX_RETRIES,
+                            exc,
+                            delay,
+                        )
+                        await asyncio.sleep(delay)
+
+        if last_exc is not None:
+            raise last_exc
+
+        raise RuntimeError("LLM request failed without a captured exception")
+
     async def chat_with_image(
         self,
         system_prompt: str,
@@ -95,15 +157,8 @@ class LLMProvider(ABC):
             "max_tokens": max_tokens,
         }
 
-        async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(
-                self._completions_url(),
-                headers=self._headers(),
-                json=payload,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data["choices"][0]["message"]["content"]
+        data = await self._request_with_retry(payload)
+        return data["choices"][0]["message"]["content"]
 
     async def chat_text(
         self,
@@ -124,12 +179,5 @@ class LLMProvider(ABC):
             "max_tokens": max_tokens,
         }
 
-        async with httpx.AsyncClient(timeout=120) as client:
-            resp = await client.post(
-                self._completions_url(),
-                headers=self._headers(),
-                json=payload,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data["choices"][0]["message"]["content"]
+        data = await self._request_with_retry(payload)
+        return data["choices"][0]["message"]["content"]

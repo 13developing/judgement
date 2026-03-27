@@ -94,7 +94,7 @@ def _repair_json_backslashes(text: str) -> str:
     result: list[str] = []
     in_string = False
     escape = False
-    valid_json_escapes = {'"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u'}
+    valid_json_escapes = {'"', "\\", "/", "b", "f", "n", "r", "t", "u"}
 
     i = 0
     while i < len(text):
@@ -113,13 +113,13 @@ def _repair_json_backslashes(text: str) -> str:
             i += 1
             continue
 
-        if ch == '\\':
-            next_ch = text[i + 1] if i + 1 < len(text) else ''
+        if ch == "\\":
+            next_ch = text[i + 1] if i + 1 < len(text) else ""
             if next_ch in valid_json_escapes:
                 result.append(ch)
                 escape = True
             else:
-                result.append('\\\\')
+                result.append("\\\\")
             i += 1
             continue
 
@@ -128,7 +128,7 @@ def _repair_json_backslashes(text: str) -> str:
             in_string = False
         i += 1
 
-    return ''.join(result)
+    return "".join(result)
 
 
 # ---------------------------------------------------------------------------

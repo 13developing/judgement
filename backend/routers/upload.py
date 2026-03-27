@@ -5,6 +5,7 @@ from __future__ import annotations
 import shutil
 import uuid
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlmodel import Session
@@ -25,11 +26,12 @@ from backend.services.document_importer import build_import_bundles
 router = APIRouter(prefix="/api/upload", tags=["上传"])
 
 _ALLOWED_DOC_EXT = {".docx", ".pdf"}
+_MAX_DOC_SIZE = 20 * 1024 * 1024  # 20 MB
 
 
 @router.post("/document", response_model=DocumentParseResponse)
 async def upload_document(
-    files: list[UploadFile] = File(...),
+    files: Annotated[list[UploadFile], File(...)],
 ) -> DocumentParseResponse:
     """Upload multiple docs and let the model extract+match import items."""
     if not files:
@@ -59,8 +61,8 @@ async def upload_document(
 @router.post("/document/confirm")
 def confirm_import(
     body: DocumentConfirmRequest,
-    session: Session = Depends(get_session),
-) -> dict:
+    session: Annotated[Session, Depends(get_session)],
+) -> dict[str, int]:
     """Confirm parsed questions and import them into the question bank and doc tables."""
     imported = 0
     for bundle in body.bundles:
@@ -137,6 +139,11 @@ def _save_upload_file(upload: UploadFile) -> Path:
     ext = Path(upload.filename or "").suffix.lower()
     if ext not in _ALLOWED_DOC_EXT:
         raise HTTPException(400, f"不支持的文件类型：{ext}，仅支持 .docx 和 .pdf")
+
+    content = upload.file.read()
+    if len(content) > _MAX_DOC_SIZE:
+        raise HTTPException(400, "文档大小超过限制（最大 20MB）")
+    _ = upload.file.seek(0)
 
     dest = UPLOAD_DIR / f"{uuid.uuid4().hex}{ext}"
     with open(dest, "wb") as f:
