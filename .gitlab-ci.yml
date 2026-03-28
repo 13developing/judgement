@@ -1,4 +1,4 @@
-# GitLab CI/CD Pipeline
+# GitLab / Gitee CI/CD Pipeline
 # Triggers: push to main/master, merge requests targeting main/master
 
 stages:
@@ -9,7 +9,7 @@ variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.pip-cache"
   LLM_API_KEY: "test-key-for-ci"
 
-default:
+.shared: &shared
   image: python:3.12-slim
   cache:
     key: "pip-${CI_COMMIT_REF_SLUG}"
@@ -23,6 +23,7 @@ default:
 # ---------- Lint Stage ----------
 
 ruff-check:
+  <<: *shared
   stage: lint
   script:
     - ruff check backend/
@@ -31,6 +32,7 @@ ruff-check:
     - if: $CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "master"
 
 ruff-format:
+  <<: *shared
   stage: lint
   script:
     - ruff format --check backend/
@@ -41,6 +43,7 @@ ruff-format:
 # ---------- Test Stage ----------
 
 pytest:
+  <<: *shared
   stage: test
   script:
     - pytest test/ -v --tb=short
