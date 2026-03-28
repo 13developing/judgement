@@ -25,7 +25,11 @@ from backend.schemas import (
 )
 from backend.services.grading import extract_exam_sheet_metadata, grade_exam_sheet, grade_image
 from backend.services.question_matcher import find_matching_question
-from backend.utils.image import compress_and_encode, crop_top_region_and_encode, normalize_exam_sheet_image
+from backend.utils.image import (
+    compress_and_encode,
+    crop_top_region_and_encode,
+    normalize_exam_sheet_image,
+)
 
 router = APIRouter(prefix="/api/judge", tags=["判题"])
 
@@ -178,11 +182,7 @@ def _prepend_explanation(explanation: str, prefix: str) -> str:
 def _sheet_response_from_record(record: StudentExamSheet) -> ExamSheetListItem:
     image_paths = json.loads(record.image_paths_json)
     page_summaries = json.loads(record.page_summaries_json)
-    image_urls = [
-        _to_image_url(item)
-        for item in image_paths
-        if isinstance(item, str)
-    ]
+    image_urls = [_to_image_url(item) for item in image_paths if isinstance(item, str)]
     return ExamSheetListItem(
         id=record.id or 0,
         student_name=record.student_name,
@@ -370,7 +370,9 @@ async def judge_exam_sheet(
         encoded_images[0],
         crop_top_region_and_encode(str(paths[0])),
     )
-    result = cast(dict[str, object], await grade_exam_sheet(encoded_images, metadata, standard_answer))
+    result = cast(
+        dict[str, object], await grade_exam_sheet(encoded_images, metadata, standard_answer)
+    )
 
     record = StudentExamSheet(
         student_name=_as_str(result.get("student_name"), "未识别"),
@@ -415,7 +417,7 @@ def list_exam_sheets(
 
     stmt = (
         select(StudentExamSheet)
-        .order_by(StudentExamSheet.created_at.desc())  # type: ignore[union-attr]
+        .order_by(StudentExamSheet.created_at.desc())  # type: ignore[union-attr] # pyright: ignore[reportAttributeAccessIssue,reportUnknownMemberType,reportUnknownArgumentType]
         .offset(offset)
         .limit(limit)
     )

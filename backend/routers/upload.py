@@ -47,8 +47,13 @@ async def upload_document(
 
     try:
         summary, questions, bundles = await build_import_bundles(saved_paths, saved_names)
+    except ValueError as exc:
+        raise HTTPException(422, f"文档解析未提取到题目：{exc}") from exc
     except Exception as exc:
         raise HTTPException(500, f"文档解析失败：{exc}") from exc
+
+    if not questions:
+        raise HTTPException(422, "文档解析完成但未提取到任何题目，请检查文档内容格式是否正确")
 
     return DocumentParseResponse(
         filename=summary,

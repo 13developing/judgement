@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from pathlib import Path
 
 from backend.schemas import ParsedDocumentBundle, ParsedQuestion
 from backend.services.doc_parser import extract_document_text
 from backend.services.llm_client import chat_text
+
+log = logging.getLogger(__name__)
 
 _EXTRACT_SYSTEM_PROMPT = """你是一名大学数学题库整理助手。
 
@@ -36,7 +39,9 @@ async def build_import_bundles(
             filename, {"role": "exam", "group_key": _normalize_doc_name(filename)}
         )
         is_answer = role_info["role"] == "answer"
+        log.info("Processing file %r as %s", filename, "answer" if is_answer else "exam")
         raw_text = await extract_document_text(str(file_path))
+        log.info("Extracted %d chars from %r", len(raw_text), filename)
         parsed_questions = await _extract_questions_with_model(
             raw_text, is_answer=is_answer, filename=filename
         )
@@ -102,6 +107,7 @@ async def build_import_bundles(
         raise ValueError("未解析到可导入的试卷题目")
 
     summary = f"已匹配 {matched_count}/{len(exam_files)} 份试卷"
+    log.info("Import summary: %s, total questions: %d", summary, len(flattened_questions))
     return summary, flattened_questions, bundles
 
 

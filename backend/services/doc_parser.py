@@ -4,16 +4,22 @@ from __future__ import annotations
 
 import base64
 import io
+import logging
 import re
 import unicodedata
 from pathlib import Path
 
 from backend.services.llm_client import chat_with_image
 
+log = logging.getLogger(__name__)
+
+_MAX_OCR_PAGES = 8  # Safety limit for LLM OCR page count
+
 
 async def extract_document_text(file_path: str) -> str:
     """Extract raw text from a document, using OCR fallback for PDFs."""
     ext = Path(file_path).suffix.lower()
+    log.info("Extracting text from %s (%s)", file_path, ext)
     if ext == ".docx":
         return _extract_docx_text(file_path)
     if ext == ".pdf":
@@ -27,7 +33,7 @@ async def extract_document_text(file_path: str) -> str:
 
 
 def _extract_docx_text(file_path: str) -> str:
-    import docx  # python-docx
+    import docx  # pyright: ignore[reportMissingImports]  # python-docx
 
     doc = docx.Document(file_path)
     return "\n".join(p.text.strip() for p in doc.paragraphs if p.text.strip())
@@ -68,7 +74,7 @@ async def _parse_pdf_with_llm(file_path: str) -> str:
 
     rendered_pages: list[str] = []
     with pdfplumber.open(file_path) as pdf:
-        for page in pdf.pages[:8]:
+        for page in pdf.pages[:_MAX_OCR_PAGES]:
             page_image = page.to_image(resolution=144).original.convert("RGB")
             rendered_pages.append(_image_to_base64(page_image))
 
@@ -93,6 +99,7 @@ async def _parse_pdf_with_llm(file_path: str) -> str:
             cleaned = re.sub(r"\n?```\s*$", "", cleaned)
         page_texts.append(cleaned)
 
+    log.info("LLM OCR completed for %d pages", len(rendered_pages))
     return "\n\n".join(page_texts)
 
 
