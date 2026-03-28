@@ -38,3 +38,5 @@ htmlcov/
 _tmp/
 .ruff_cache/
 .cache/
+
+my.env

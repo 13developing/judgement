@@ -39,8 +39,17 @@
                 <div class="info-chip">步骤评分</div>
             </div>
         </header>
-
-        <section class="workspace judge-workspace">
+<section class="mode-switch">
+  <div class="segmented" role="tablist" aria-label="判题模式切换">
+    <button type="button" class="segmented-btn is-active" data-mode="single" role="tab" aria-selected="true">
+      智能判题
+    </button>
+    <button type="button" class="segmented-btn" data-mode="cards" role="tab" aria-selected="false">
+      答题卡专区
+    </button>
+  </div>
+</section>
+     <section class="workspace judge-workspace" id="mode-single">
             <div class="panel judge-panel judge-input-panel">
                 <h2 class="card-title">提交答卷</h2>
 
@@ -156,6 +165,83 @@
                 </div>
             </div>
         </section>
+
+      <section class="workspace judge-workspace hidden" id="mode-cards">
+  <div class="panel judge-panel judge-input-panel">
+    <h2 class="card-title">答题卡批改</h2>
+
+    <form id="cards-form" class="panel-stack">
+      <section class="panel-section">
+        <div class="section-heading">
+          <h3 class="section-title">上传试卷本身</h3>
+          <p>支持 docx / pdf / png / jpg / jpeg / txt</p>
+        </div>
+        <input
+          type="file"
+          id="paper-input"
+          required
+          accept=".docx,.pdf,.png,.jpg,.jpeg,.txt,image/*,application/pdf,text/plain"
+        />
+        <div class="upload-hint" id="paper-hint"></div>
+      </section>
+
+      <section class="panel-section">
+        <div class="section-heading">
+          <h3 class="section-title">上传评分细则 / 答案</h3>
+          <p>支持 docx / pdf / png / jpg / jpeg / txt</p>
+        </div>
+        <input
+          type="file"
+          id="rubric-input"
+          required
+          accept=".docx,.pdf,.png,.jpg,.jpeg,.txt,image/*,application/pdf,text/plain"
+        />
+        <div class="upload-hint" id="rubric-hint"></div>
+      </section>
+
+      <section class="panel-section">
+        <div class="section-heading">
+          <h3 class="section-title">批量上传学生答题卡</h3>
+          <p>一次最多 100 份</p>
+        </div>
+        <input
+          type="file"
+          id="cards-input"
+          required
+          multiple
+          accept=".docx,.pdf,.png,.jpg,.jpeg,.txt,image/*,application/pdf,text/plain"
+        />
+        <div class="upload-hint" id="cards-hint"></div>
+      </section>
+
+      <div id="cards-error-message" class="state-message error-message hidden"></div>
+
+      <button type="submit" class="btn btn-primary btn-block" id="cards-submit-btn">
+        <span class="spinner"></span>
+        <span class="btn-text">开始批改</span>
+      </button>
+    </form>
+  </div>
+
+  <div class="panel judge-panel judge-result-panel">
+    <h2 class="card-title">批改结果</h2>
+
+    <div class="result-container">
+      <div class="result-placeholder state-message" id="cards-result-placeholder">
+        上传试卷、评分细则和答题卡后，这里会生成每题得分与总分表格
+      </div>
+
+      <div id="cards-result-content" class="hidden">
+        <div class="table-scroll">
+          <table id="cards-result-table">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
     </main>
 </body>
 </html>

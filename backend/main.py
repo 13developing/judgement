@@ -26,6 +26,7 @@ from backend.routers import (
     provider,
     question_bank,
     upload,
+    grade_cards,
 )
 from backend.services.cleanup import start_cleanup_scheduler, stop_cleanup_scheduler
 from backend.services.http_client import shutdown_http_client, startup_http_client
@@ -87,6 +88,7 @@ app.include_router(question_bank.router)
 app.include_router(upload.router)
 app.include_router(provider.router)
 app.include_router(metrics.router)
+app.include_router(grade_cards.router)
 
 # ── Static files ─────────────────────────────────────────────────────────
 if (_FRONTEND_DIR / "static").exists():
