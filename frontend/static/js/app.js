@@ -72,6 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ============================
     // 答题卡批改模式：提交与渲染
+    // 目标：只有当后端(大模型)返回全部结果后，才展示表格；提交时清空旧表格
     // ============================
     const cardsForm = document.getElementById('cards-form');
     const paperInput = document.getElementById('paper-input');
@@ -189,6 +190,16 @@ document.addEventListener('DOMContentLoaded', () => {
         // 多文件：同一个 key append 多次
         cardFiles.forEach((f) => formData.append('cards', f));
 
+        // 关键：提交开始就清空/隐藏旧结果，只显示占位（避免“提前展示”）
+        cardsResultContent.classList.add('hidden');
+        cardsResultPlaceholder.classList.remove('hidden');
+        {
+            const thead = cardsResultTable.querySelector('thead');
+            const tbody = cardsResultTable.querySelector('tbody');
+            if (thead) thead.innerHTML = '';
+            if (tbody) tbody.innerHTML = '';
+        }
+
         cardsSubmitBtn.disabled = true;
         cardsSubmitBtn.classList.add('loading');
 
@@ -203,11 +214,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 throw new Error(errData.detail || '请求失败，请检查后端服务');
             }
 
+            // 只有当后端一次性返回最终 JSON（全部结果）后，才渲染并显示
             const data = await resp.json();
             renderCardsTable(data);
         } catch (err) {
             cardsErrorMsg.textContent = `批改出错: ${err.message || err}`;
             cardsErrorMsg.classList.remove('hidden');
+
+            // 出错时也不要回显旧表格
+            cardsResultContent.classList.add('hidden');
+            cardsResultPlaceholder.classList.remove('hidden');
         } finally {
             cardsSubmitBtn.disabled = false;
             cardsSubmitBtn.classList.remove('loading');
@@ -589,6 +605,12 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        // 关键：提交开始先清空旧的成绩列表，避免“立马出旧结果”
+        examSheets = [];
+        renderScoreTable();
+        resultPlaceholder.classList.remove('hidden');
+        resultContent.classList.add('hidden');
+
         submitBtn.disabled = true;
         submitBtn.classList.add('loading');
 
@@ -616,6 +638,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 createdSheets.push(await response.json());
             }
 
+            // 全部分组提交完成后，再统一加载并展示（不会先展示历史）
             await loadExamSheets();
             if (createdSheets.length) {
                 openDetailModal(createdSheets[0]);
@@ -630,7 +653,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    loadExamSheets().catch(() => {
-        renderScoreTable();
-    });
+    // 关键：页面加载时不自动拉取历史成绩，避免“打开/提交后立刻显示旧结果”
+    renderScoreTable();
 });
