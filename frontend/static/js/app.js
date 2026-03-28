@@ -22,6 +22,176 @@ document.addEventListener('DOMContentLoaded', () => {
     const uploadHint = uploadArea.querySelector('.upload-hint');
     const resultSummary = document.querySelector('.result-summary');
 
+    // ============================
+    // 模式切换条（智能判题 / 答题卡专区）
+    // ============================
+    const modeBtns = document.querySelectorAll('.segmented-btn[data-mode]');
+    const modeSingle = document.getElementById('mode-single');
+    const modeCards = document.getElementById('mode-cards');
+
+    function setMode(mode) {
+        modeBtns.forEach((btn) => {
+            const active = btn.dataset.mode === mode;
+            btn.classList.toggle('is-active', active);
+            btn.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+
+        if (mode === 'single') {
+            modeSingle?.classList.remove('hidden');
+            modeCards?.classList.add('hidden');
+        } else {
+            modeSingle?.classList.add('hidden');
+            modeCards?.classList.remove('hidden');
+        }
+    }
+
+    modeBtns.forEach((btn) => btn.addEventListener('click', () => setMode(btn.dataset.mode)));
+    setMode('single');
+
+    // ============================
+    // 答题卡批改模式：提交与渲染
+    // ============================
+    const cardsForm = document.getElementById('cards-form');
+    const paperInput = document.getElementById('paper-input');
+    const rubricInput = document.getElementById('rubric-input');
+    const cardsInput = document.getElementById('cards-input');
+    const cardsErrorMsg = document.getElementById('cards-error-message');
+    const cardsSubmitBtn = document.getElementById('cards-submit-btn');
+
+    const paperHint = document.getElementById('paper-hint');
+    const rubricHint = document.getElementById('rubric-hint');
+    const cardsHint = document.getElementById('cards-hint');
+
+    const cardsResultPlaceholder = document.getElementById('cards-result-placeholder');
+    const cardsResultContent = document.getElementById('cards-result-content');
+    const cardsResultTable = document.getElementById('cards-result-table');
+
+    function setHint(el, text) {
+        if (!el) return;
+        el.textContent = text || '';
+    }
+
+    paperInput?.addEventListener('change', () => {
+        const f = paperInput.files?.[0];
+        setHint(paperHint, f ? `已选择：${f.name}` : '');
+    });
+
+    rubricInput?.addEventListener('change', () => {
+        const f = rubricInput.files?.[0];
+        setHint(rubricHint, f ? `已选择：${f.name}` : '');
+    });
+
+    cardsInput?.addEventListener('change', () => {
+        const n = cardsInput.files?.length || 0;
+        setHint(cardsHint, n ? `已选择 ${n} 份答题卡` : '');
+    });
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function renderCardsTable(data) {
+        const thead = cardsResultTable.querySelector('thead');
+        const tbody = cardsResultTable.querySelector('tbody');
+        thead.innerHTML = '';
+        tbody.innerHTML = '';
+
+        const questionCount = Number(data.question_count || 0);
+        const rows = Array.isArray(data.rows) ? data.rows : [];
+
+        // 表头：文件名 + 题1..题N + 总分 + 错误
+        const trh = document.createElement('tr');
+        const headers = ['文件名'];
+        for (let i = 1; i <= questionCount; i++) headers.push(`题${i}`);
+        headers.push('总分', '错误');
+        trh.innerHTML = headers.map(h => `<th>${escapeHtml(h)}</th>`).join('');
+        thead.appendChild(trh);
+
+        rows.forEach((r) => {
+            const tr = document.createElement('tr');
+            const filename = r.card_filename || '';
+            const scores = Array.isArray(r.scores) ? r.scores : [];
+            const total = (r.total_score ?? '');
+            const err = r.error || '';
+
+            const cells = [];
+            cells.push(`<td>${escapeHtml(String(filename))}</td>`);
+            for (let i = 0; i < questionCount; i++) {
+                cells.push(`<td>${escapeHtml(String(scores[i] ?? ''))}</td>`);
+            }
+            cells.push(`<td>${escapeHtml(String(total))}</td>`);
+            cells.push(`<td>${escapeHtml(String(err))}</td>`);
+
+            tr.innerHTML = cells.join('');
+            tbody.appendChild(tr);
+        });
+
+        cardsResultPlaceholder.classList.add('hidden');
+        cardsResultContent.classList.remove('hidden');
+    }
+
+    cardsForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        cardsErrorMsg.classList.add('hidden');
+
+        const paperFile = paperInput.files?.[0];
+        const rubricFile = rubricInput.files?.[0];
+        const cardFiles = cardsInput.files ? Array.from(cardsInput.files) : [];
+
+        if (!paperFile) {
+            cardsErrorMsg.textContent = '请先上传试卷本身';
+            cardsErrorMsg.classList.remove('hidden');
+            return;
+        }
+        if (!rubricFile) {
+            cardsErrorMsg.textContent = '请先上传评分细则/答案';
+            cardsErrorMsg.classList.remove('hidden');
+            return;
+        }
+        if (!cardFiles.length) {
+            cardsErrorMsg.textContent = '请先批量上传学生答题卡';
+            cardsErrorMsg.classList.remove('hidden');
+            return;
+        }
+        if (cardFiles.length > 100) {
+            cardsErrorMsg.textContent = '一次最多上传 100 份答题卡';
+            cardsErrorMsg.classList.remove('hidden');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('paper', paperFile);
+        formData.append('rubric', rubricFile);
+        // 多文件：同一个 key append 多次
+        cardFiles.forEach((f) => formData.append('cards', f));
+
+        cardsSubmitBtn.disabled = true;
+        cardsSubmitBtn.classList.add('loading');
+
+        try {
+            const resp = await fetch('/api/grade-cards', {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (!resp.ok) {
+                const errData = await resp.json().catch(() => ({}));
+                throw new Error(errData.detail || '请求失败，请检查后端服务');
+            }
+
+            const data = await resp.json();
+            renderCardsTable(data);
+        } catch (err) {
+            cardsErrorMsg.textContent = `批改出错: ${err.message || err}`;
+            cardsErrorMsg.classList.remove('hidden');
+        } finally {
+            cardsSubmitBtn.disabled = false;
+            cardsSubmitBtn.classList.remove('loading');
+        }
+    });
+
     function setResultTone(tone) {
         resultSummary.classList.remove('is-excellent', 'is-partial', 'is-empty');
         resultSummary.classList.add(tone);
