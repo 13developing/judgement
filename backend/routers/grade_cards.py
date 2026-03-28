@@ -1,17 +1,15 @@
 """Answer card grading endpoint: upload paper + rubric + many student cards."""
 
 from __future__ import annotations
-from typing import List
+
 import shutil
 import uuid
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from sqlmodel import Session
+from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from backend.config import UPLOAD_DIR
-from backend.database import get_session
 
 router = APIRouter(prefix="/api/grade-cards", tags=["答题卡批改"])
 
@@ -85,7 +83,7 @@ async def grade_one_card(
     try:
         # Fake: assume 5 questions
         question_count = 5
-        base = (sum(card_filename.encode("utf-8")) % 6)  # 0..5
+        base = sum(card_filename.encode("utf-8")) % 6  # 0..5
         scores = [float(min(10, base + i)) for i in range(question_count)]
         total = float(sum(scores))
         return {
@@ -107,8 +105,7 @@ async def grade_one_card(
 async def grade_cards(
     paper: UploadFile = File(...),
     rubric: UploadFile = File(...),
-    # cards: List[UploadFile] = File(..., description="批量学生答题卡（<=100份）"),
-    cards: List[UploadFile] = File(
+    cards: list[UploadFile] = File(
         ...,
         description="批量学生答题卡（<=100份）",
         openapi_extra={
@@ -116,8 +113,6 @@ async def grade_cards(
             "items": {"type": "string", "format": "binary"},
         },
     ),
-
-    session: Session = Depends(get_session),
 ):
     """
     Upload paper + rubric + up to 100 student answer cards,

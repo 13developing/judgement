@@ -1324,15 +1324,21 @@ tbody tr:hover td {
   .provider-modal-footer .btn {
     width: 100%;
   }
-  .mode-switch { margin: 18px 0 10px; }
+}
+
+/* ── Mode switch (segmented control) ────────────────────────────────── */
+
+.mode-switch {
+  margin: 18px 0 10px;
+}
 
 .segmented {
   display: inline-flex;
   gap: 6px;
   padding: 6px;
   border-radius: 999px;
-  background: rgba(0,0,0,0.04);
-  border: 1px solid rgba(0,0,0,0.08);
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .segmented-btn {
@@ -1346,6 +1352,5 @@ tbody tr:hover td {
 
 .segmented-btn.is-active {
   background: white;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
-}
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
