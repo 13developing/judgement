@@ -12,7 +12,7 @@ variables:
 default:
   image: python:3.12-slim
   cache:
-    key: pip-${CI_COMMIT_REF_SLUG}
+    key: "pip-${CI_COMMIT_REF_SLUG}"
     paths:
       - .pip-cache/
   before_script:
