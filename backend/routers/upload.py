@@ -51,7 +51,6 @@ async def upload_document(
     try:
         summary, questions, bundles = await build_import_bundles(saved_paths, saved_names)
     except ValueError as exc:
-        # Known parsing issue (e.g. no questions found)
         log.warning("Document parsing returned no results: %s", exc)
         raise HTTPException(422, f"文档解析未提取到题目：{exc}") from exc
     except Exception as exc:

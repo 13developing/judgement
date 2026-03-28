@@ -1,12 +1,30 @@
 document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('judge-form');
     const imageInput = document.getElementById('image-input');
-    const imagePreview = document.getElementById('image-preview');
     const uploadArea = document.getElementById('upload-area');
     const submitBtn = document.getElementById('submit-btn');
     const errorMsg = document.getElementById('error-message');
     const modeRadios = document.getElementsByName('judge_mode');
     const manualAnswerGroup = document.getElementById('manual-answer-group');
+    const pagesPerSheetInput = document.getElementById('pages-per-sheet');
+    const pagesPerSheetLabel = document.getElementById('pages-per-sheet-label');
+    const sheetPreviewGrid = document.getElementById('sheet-preview-grid');
+    const sheetPreviewEmpty = document.getElementById('sheet-preview-empty');
+    const scoreTableBody = document.getElementById('score-table-body');
+    const sheetModal = document.getElementById('sheet-modal');
+    const sheetModalBackdrop = document.getElementById('sheet-modal-backdrop');
+    const sheetModalClose = document.getElementById('sheet-modal-close');
+    const sheetModalTitle = document.getElementById('sheet-modal-title');
+    const sheetModalMeta = document.getElementById('sheet-modal-meta');
+    const sheetModalBody = document.getElementById('sheet-modal-body');
+    const detailModal = document.getElementById('detail-modal');
+    const detailModalBackdrop = document.getElementById('detail-modal-backdrop');
+    const detailModalClose = document.getElementById('detail-modal-close');
+    const detailModalTitle = document.getElementById('detail-modal-title');
+    const detailModalMeta = document.getElementById('detail-modal-meta');
+    const detailStudentNameInput = document.getElementById('detail-student-name');
+    const detailSubjectInput = document.getElementById('detail-subject');
+    const detailSaveBtn = document.getElementById('detail-save-btn');
 
     const resultPlaceholder = document.getElementById('result-placeholder');
     const resultContent = document.getElementById('result-content');
@@ -14,13 +32,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const resTotal = document.getElementById('res-total');
     const resType = document.getElementById('res-type');
     const resJudgment = document.getElementById('res-judgment');
+    const resSubject = document.getElementById('res-subject');
     const resRecognized = document.getElementById('res-recognized');
     const resExplanation = document.getElementById('res-explanation');
     const resStepsContainer = document.getElementById('res-steps-container');
     const resStepsTableBody = document.querySelector('#res-steps-table tbody');
     const uploadText = uploadArea.querySelector('.upload-text');
     const uploadHint = uploadArea.querySelector('.upload-hint');
-    const resultSummary = document.querySelector('.result-summary');
+    const resultSummary = document.querySelector('.detail-summary');
+    let groupedSheets = [];
+    let examSheets = [];
+    let activeSheetId = null;
 
     // ============================
     // 模式切换条（智能判题 / 答题卡专区）
@@ -211,9 +233,28 @@ document.addEventListener('DOMContentLoaded', () => {
             .replace(/\n{3,}/g, '\n\n');
     }
 
+    function formatCreatedAt(value) {
+        if (!value) {
+            return '-';
+        }
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+            return value;
+        }
+
+        const datePart = date.toLocaleDateString('zh-CN');
+        const timePart = date.toLocaleTimeString('zh-CN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+        return `${datePart}<br>${timePart}`;
+    }
+
     function renderMath() {
         if (window.renderMathInElement) {
-            renderMathInElement(document.getElementById('result-content'), {
+            renderMathInElement(detailModal, {
                 delimiters: [
                     { left: '$$', right: '$$', display: true },
                     { left: '\\[', right: '\\]', display: true },
@@ -225,20 +266,65 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    imageInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+    function getPagesPerSheet() {
+        const value = Number.parseInt(pagesPerSheetInput.value, 10);
+        return Number.isFinite(value) && value > 0 ? value : 1;
+    }
 
-        const reader = new FileReader();
-        reader.onload = function(loadEvent) {
-            imagePreview.src = loadEvent.target.result;
-            imagePreview.classList.add('is-visible');
-            uploadArea.classList.add('has-file');
-            uploadText.textContent = file.name;
-            uploadHint.textContent = '已完成选择，可直接提交判题';
-        };
-        reader.readAsDataURL(file);
-    });
+    function groupFiles(files) {
+        const pagesPerSheet = getPagesPerSheet();
+        const groups = [];
+        for (let i = 0; i < files.length; i += pagesPerSheet) {
+            groups.push(files.slice(i, i + pagesPerSheet));
+        }
+        return groups;
+    }
+
+    function renderGroupedSheets() {
+        const files = Array.from(imageInput.files || []);
+        groupedSheets = groupFiles(files);
+        pagesPerSheetLabel.textContent = String(getPagesPerSheet());
+
+        if (!files.length) {
+            uploadArea.classList.remove('has-file');
+            uploadText.textContent = '点击或拖拽上传答题图片';
+            uploadHint.textContent = '支持多选图片，按拍摄顺序连续分组';
+            sheetPreviewEmpty.classList.remove('hidden');
+            sheetPreviewGrid.classList.add('hidden');
+            sheetPreviewGrid.innerHTML = '';
+            return;
+        }
+
+        uploadArea.classList.add('has-file');
+        uploadText.textContent = `已选择 ${files.length} 张图片`;
+        uploadHint.textContent = `已自动分成 ${groupedSheets.length} 份答卷，可点击卡片查看`;
+
+        sheetPreviewEmpty.classList.add('hidden');
+        sheetPreviewGrid.classList.remove('hidden');
+        sheetPreviewGrid.innerHTML = '';
+
+        groupedSheets.forEach((group, index) => {
+            const card = document.createElement('button');
+            card.type = 'button';
+            card.className = 'sheet-card';
+            card.innerHTML = `
+                <span class="sheet-card-title">第 ${index + 1} 份答卷</span>
+                <span class="sheet-card-meta">${group.length} 张图片</span>
+                <span class="sheet-card-files">${group.map((file) => file.name).join(' / ')}</span>
+            `;
+            card.addEventListener('click', () => {
+                openSheetModal({
+                    title: `第 ${index + 1} 份答卷`,
+                    meta: `按上传顺序展示，共 ${group.length} 页`,
+                    images: group.map((file) => ({ url: URL.createObjectURL(file), name: file.name })),
+                });
+            });
+            sheetPreviewGrid.appendChild(card);
+        });
+    }
+
+    imageInput.addEventListener('change', renderGroupedSheets);
+    pagesPerSheetInput.addEventListener('input', renderGroupedSheets);
 
     uploadArea.addEventListener('dragover', (e) => {
         e.preventDefault();
@@ -258,6 +344,57 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    function openSheetModal({ title, meta, images }) {
+        sheetModalTitle.textContent = title;
+        sheetModalMeta.textContent = meta;
+        sheetModalBody.innerHTML = '';
+
+        images.forEach((image, index) => {
+            const block = document.createElement('div');
+            block.className = 'sheet-modal-page';
+            block.innerHTML = `
+                <div class="sheet-modal-page-header">第 ${index + 1} 页${image.name ? ` · ${image.name}` : ''}</div>
+                <img src="${image.url}" alt="${title} 第 ${index + 1} 页" class="sheet-modal-image">
+            `;
+            sheetModalBody.appendChild(block);
+        });
+
+        sheetModal.classList.remove('hidden');
+        sheetModalBackdrop.classList.remove('hidden');
+    }
+
+    function closeSheetModal() {
+        sheetModal.classList.add('hidden');
+        sheetModalBackdrop.classList.add('hidden');
+    }
+
+    function openDetailModal(data) {
+        activeSheetId = data.id ?? null;
+        detailModalTitle.textContent = `${data.student_name || '未识别学生'} 的成绩详情`;
+        detailModalMeta.textContent = `${data.subject || '未识别科目'} · ${data.page_count || 0} 页答卷`;
+        detailStudentNameInput.value = data.student_name || '';
+        detailSubjectInput.value = data.subject || '';
+        updateResultPanel(data);
+        detailModal.classList.remove('hidden');
+        detailModalBackdrop.classList.remove('hidden');
+    }
+
+    function closeDetailModal() {
+        activeSheetId = null;
+        detailModal.classList.add('hidden');
+        detailModalBackdrop.classList.add('hidden');
+    }
+
+    function replaceExamSheet(updatedSheet) {
+        examSheets = examSheets.map((sheet) => sheet.id === updatedSheet.id ? updatedSheet : sheet);
+        renderScoreTable();
+    }
+
+    sheetModalClose.addEventListener('click', closeSheetModal);
+    sheetModalBackdrop.addEventListener('click', closeSheetModal);
+    detailModalClose.addEventListener('click', closeDetailModal);
+    detailModalBackdrop.addEventListener('click', closeDetailModal);
+
     modeRadios.forEach((radio) => {
         radio.addEventListener('change', (e) => {
             if (e.target.value === 'manual') {
@@ -267,6 +404,174 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
     });
+
+    function updateResultPanel(data) {
+        resultPlaceholder.classList.add('hidden');
+        resultContent.classList.remove('hidden');
+
+        resScore.textContent = data.score ?? '-';
+        resTotal.textContent = data.total_score ?? '100';
+        resType.textContent = data.student_name || '未识别学生';
+        resSubject.textContent = `科目：${data.subject || '未识别'}`;
+        resJudgment.textContent = data.judgment || 'partial';
+
+        if (data.score === data.total_score && data.total_score > 0) {
+            resJudgment.style.color = 'var(--success)';
+            setResultTone('is-excellent');
+        } else if (data.score === 0) {
+            resJudgment.style.color = 'var(--error)';
+            setResultTone('is-empty');
+        } else {
+            resJudgment.style.color = 'var(--accent)';
+            setResultTone('is-partial');
+        }
+
+        resRecognized.textContent = normalizeDisplayText(data.recognized_content) || '未识别出内容';
+        resExplanation.textContent = normalizeDisplayText(data.explanation) || '无详细点评';
+
+        if (data.page_summaries && data.page_summaries.length > 0) {
+            resStepsContainer.classList.remove('hidden');
+            resStepsTableBody.innerHTML = '';
+            data.page_summaries.forEach((summary, idx) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>第 ${idx + 1} 页</td>
+                    <td>${normalizeDisplayText(summary) || '-'}</td>
+                `;
+                resStepsTableBody.appendChild(tr);
+            });
+        } else {
+            resStepsContainer.classList.add('hidden');
+        }
+
+        renderMath();
+    }
+
+    async function deleteExamSheet(sheet) {
+        const confirmed = window.confirm(`确定删除 ${sheet.student_name || '该学生'} 的成绩记录吗？`);
+        if (!confirmed) {
+            return;
+        }
+
+        const response = await fetch(`/api/judge/exam-sheets/${sheet.id}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.detail || '删除成绩记录失败');
+        }
+
+        examSheets = examSheets.filter((item) => item.id !== sheet.id);
+        renderScoreTable();
+        closeDetailModal();
+    }
+
+    async function saveSheetMetadata() {
+        if (!activeSheetId) {
+            return;
+        }
+
+        const studentName = detailStudentNameInput.value.trim();
+        const subject = detailSubjectInput.value.trim();
+        if (!studentName || !subject) {
+            throw new Error('姓名和科目都不能为空');
+        }
+
+        detailSaveBtn.disabled = true;
+        try {
+            const response = await fetch(`/api/judge/exam-sheets/${activeSheetId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    student_name: studentName,
+                    subject,
+                })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.detail || '保存失败');
+            }
+
+            const updatedSheet = await response.json();
+            replaceExamSheet(updatedSheet);
+            openDetailModal(updatedSheet);
+        } finally {
+            detailSaveBtn.disabled = false;
+        }
+    }
+
+    function renderScoreTable() {
+        scoreTableBody.innerHTML = '';
+        if (!examSheets.length) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = '<td colspan="7" class="table-state-cell">暂无成绩记录</td>';
+            scoreTableBody.appendChild(tr);
+            return;
+        }
+
+        examSheets.forEach((sheet) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="cell-name">${sheet.student_name || '未识别'}</td>
+                <td class="cell-subject">${sheet.subject || '未识别'}</td>
+                <td class="cell-score">${sheet.score ?? '-'} / ${sheet.total_score ?? '-'}</td>
+                <td class="cell-time">${formatCreatedAt(sheet.created_at)}</td>
+                <td class="cell-action"><button type="button" class="btn btn-outline table-link-btn">查看答卷</button></td>
+                <td class="cell-action"><button type="button" class="btn btn-outline table-link-btn">查看详情</button></td>
+                <td class="cell-action"><button type="button" class="btn btn-danger table-link-btn">删除</button></td>
+            `;
+            const buttons = tr.querySelectorAll('button');
+            buttons[0].addEventListener('click', (event) => {
+                event.stopPropagation();
+                openSheetModal({
+                    title: `${sheet.student_name || '未识别学生'} 的答卷`,
+                    meta: `${sheet.subject || '未识别科目'} · ${sheet.page_count || 0} 页`,
+                    images: (sheet.image_urls || []).map((url, index) => ({
+                        url,
+                        name: `第 ${index + 1} 页`,
+                    })),
+                });
+            });
+            buttons[1].addEventListener('click', (event) => {
+                event.stopPropagation();
+                openDetailModal(sheet);
+            });
+            buttons[2].addEventListener('click', async (event) => {
+                event.stopPropagation();
+                try {
+                    await deleteExamSheet(sheet);
+                } catch (error) {
+                    errorMsg.textContent = `删除出错: ${error.message}`;
+                    errorMsg.classList.remove('hidden');
+                }
+            });
+            scoreTableBody.appendChild(tr);
+        });
+    }
+
+    detailSaveBtn.addEventListener('click', async () => {
+        try {
+            await saveSheetMetadata();
+        } catch (error) {
+            errorMsg.textContent = `保存出错: ${error.message}`;
+            errorMsg.classList.remove('hidden');
+        }
+    });
+
+    async function loadExamSheets() {
+        const response = await fetch('/api/judge/exam-sheets');
+        if (!response.ok) {
+            throw new Error('加载成绩列表失败');
+        }
+        examSheets = await response.json();
+        resultPlaceholder.classList.toggle('hidden', examSheets.length > 0);
+        resultContent.classList.toggle('hidden', examSheets.length === 0);
+        renderScoreTable();
+    }
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -278,79 +583,43 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const mode = document.querySelector('input[name="judge_mode"]:checked').value;
-        const url = mode === 'manual' ? '/api/judge' : '/api/judge/with-bank';
-
-        const formData = new FormData();
-        formData.append('image', imageInput.files[0]);
-
-        if (mode === 'manual') {
-            const stdAnswer = document.getElementById('standard-answer').value;
-            if (stdAnswer) {
-                formData.append('standard_answer', stdAnswer);
-            }
+        if (!groupedSheets.length) {
+            errorMsg.textContent = '未生成有效答卷分组，请检查页数设置';
+            errorMsg.classList.remove('hidden');
+            return;
         }
 
         submitBtn.disabled = true;
         submitBtn.classList.add('loading');
 
         try {
-            const response = await fetch(url, {
-                method: 'POST',
-                body: formData
-            });
+            const stdAnswer = document.getElementById('standard-answer').value;
+            const createdSheets = [];
 
-            if (!response.ok) {
-                const errData = await response.json().catch(() => ({}));
-                throw new Error(errData.detail || '请求失败，请检查网络或后端服务');
-            }
+            for (const group of groupedSheets) {
+                const formData = new FormData();
+                group.forEach((file) => formData.append('images', file));
+                if (stdAnswer) {
+                    formData.append('standard_answer', stdAnswer);
+                }
 
-            const data = await response.json();
-
-            resultPlaceholder.classList.add('hidden');
-            resultContent.classList.remove('hidden');
-
-            resScore.textContent = data.score ?? '-';
-            resTotal.textContent = data.total_score ?? '100';
-            resType.textContent = data.question_type || '未知题型';
-            resJudgment.textContent = data.judgment || (data.score > 0 ? '得分' : '不得分');
-
-            if (data.score === data.total_score && data.total_score > 0) {
-                resJudgment.style.color = 'var(--success)';
-                setResultTone('is-excellent');
-            } else if (data.score === 0) {
-                resJudgment.style.color = 'var(--error)';
-                setResultTone('is-empty');
-            } else {
-                resJudgment.style.color = 'var(--accent)';
-                setResultTone('is-partial');
-            }
-
-            resRecognized.textContent = normalizeDisplayText(data.recognized_content) || '未识别出内容';
-            resExplanation.textContent = normalizeDisplayText(data.explanation) || '无详细点评';
-
-            if (data.steps && data.steps.length > 0) {
-                resStepsContainer.classList.remove('hidden');
-                resStepsTableBody.innerHTML = '';
-                data.steps.forEach((step, idx) => {
-                    const tr = document.createElement('tr');
-                    const statusClass = step.status === '✓'
-                        ? 'status-check'
-                        : (step.status === '✗' ? 'status-cross' : '');
-
-                    tr.innerHTML = `
-                        <td>步骤 ${idx + 1}</td>
-                        <td>${step.score || 0}</td>
-                        <td class="${statusClass}">${step.status || '-'}</td>
-                        <td>${normalizeDisplayText(step.comment) || '-'}</td>
-                    `;
-                    resStepsTableBody.appendChild(tr);
+                const response = await fetch('/api/judge/exam-sheet', {
+                    method: 'POST',
+                    body: formData
                 });
-            } else {
-                resStepsContainer.classList.add('hidden');
+
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    throw new Error(errData.detail || '请求失败，请检查网络或后端服务');
+                }
+
+                createdSheets.push(await response.json());
             }
 
-            renderMath();
+            await loadExamSheets();
+            if (createdSheets.length) {
+                openDetailModal(createdSheets[0]);
+            }
         } catch (error) {
             errorMsg.textContent = `判题出错: ${error.message}`;
             errorMsg.classList.remove('hidden');
@@ -359,5 +628,9 @@ document.addEventListener('DOMContentLoaded', () => {
             submitBtn.disabled = false;
             submitBtn.classList.remove('loading');
         }
+    });
+
+    loadExamSheets().catch(() => {
+        renderScoreTable();
     });
 });

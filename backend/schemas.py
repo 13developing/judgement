@@ -24,6 +24,40 @@ class JudgeResponse(BaseModel):
     steps: list[StepDetail] | None = None
 
 
+class ExamSheetJudgeResponse(BaseModel):
+    id: int | None = None
+    student_name: str
+    subject: str
+    judgment: str
+    score: float
+    total_score: float
+    recognized_content: str
+    explanation: str
+    page_count: int
+    page_summaries: list[str] = []
+    image_urls: list[str] = []
+
+
+class ExamSheetListItem(BaseModel):
+    id: int
+    student_name: str
+    subject: str
+    judgment: str
+    score: float
+    total_score: float
+    explanation: str
+    recognized_content: str
+    page_count: int
+    page_summaries: list[str] = []
+    image_urls: list[str] = []
+    created_at: str
+
+
+class ExamSheetUpdateRequest(BaseModel):
+    student_name: str
+    subject: str
+
+
 # ── Question Bank ────────────────────────────────────────────────────────
 
 

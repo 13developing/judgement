@@ -11,10 +11,9 @@ from pathlib import Path
 
 from backend.services.llm_client import chat_with_image
 
-
 log = logging.getLogger(__name__)
 
-_MAX_OCR_PAGES = 20  # Maximum pages to OCR (safety limit for very long documents)
+_MAX_OCR_PAGES = 8  # Safety limit for LLM OCR page count
 
 
 async def extract_document_text(file_path: str) -> str:
