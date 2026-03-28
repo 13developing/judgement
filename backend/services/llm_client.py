@@ -29,6 +29,25 @@ async def chat_with_image(
     )
 
 
+async def chat_with_images(
+    system_prompt: str,
+    user_prompt: str,
+    image_base64_list: list[str],
+    *,
+    temperature: float = 0.1,
+    max_tokens: int = 4000,
+) -> str:
+    """Send a multimodal request with multiple images and return the reply."""
+    provider = get_provider()
+    return await provider.chat_with_images(
+        system_prompt,
+        user_prompt,
+        image_base64_list,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+
+
 async def chat_text(
     system_prompt: str,
     user_prompt: str,

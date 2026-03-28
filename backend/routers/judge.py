@@ -10,16 +10,22 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Annotated, cast
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, File, Form, HTTPException, UploadFile
 from sqlmodel import Session
 
 from backend.config import UPLOAD_DIR
 from backend.database import get_session
-from backend.models import JudgeResult
-from backend.schemas import JudgeResponse, StepDetail
-from backend.services.grading import grade_image
+from backend.models import JudgeResult, StudentExamSheet
+from backend.schemas import (
+    ExamSheetJudgeResponse,
+    ExamSheetListItem,
+    ExamSheetUpdateRequest,
+    JudgeResponse,
+    StepDetail,
+)
+from backend.services.grading import extract_exam_sheet_metadata, grade_exam_sheet, grade_image
 from backend.services.question_matcher import find_matching_question
-from backend.utils.image import compress_and_encode
+from backend.utils.image import compress_and_encode, crop_top_region_and_encode, normalize_exam_sheet_image
 
 router = APIRouter(prefix="/api/judge", tags=["判题"])
 
@@ -35,6 +41,10 @@ def _as_str(value: object, default: str = "") -> str:
 
 def _as_int(value: object, default: int = 0) -> int:
     return value if isinstance(value, int) else default
+
+
+def _as_float(value: object, default: float = 0) -> float:
+    return float(value) if isinstance(value, (int, float)) else default
 
 
 def _as_steps(value: object) -> list[StepDetail] | None:
@@ -76,6 +86,19 @@ def _save_upload(image: UploadFile) -> Path:
     with open(dest, "wb") as f:
         shutil.copyfileobj(image.file, f)
     return dest
+
+
+def _to_image_url(path: str | Path) -> str:
+    return f"/uploads/{Path(path).name}"
+
+
+def _save_uploads(images: list[UploadFile]) -> list[Path]:
+    return [_save_upload(image) for image in images]
+
+
+def _normalize_exam_sheet_uploads(paths: list[Path]) -> None:
+    for path in paths:
+        normalize_exam_sheet_image(str(path))
 
 
 def _to_response(result: ResultDict) -> JudgeResponse:
@@ -150,6 +173,44 @@ def _force_blank_result(result: ResultDict) -> ResultDict:
 def _prepend_explanation(explanation: str, prefix: str) -> str:
     explanation = explanation or ""
     return f"{prefix}\n\n{explanation}" if explanation else prefix
+
+
+def _sheet_response_from_record(record: StudentExamSheet) -> ExamSheetListItem:
+    image_paths = json.loads(record.image_paths_json)
+    page_summaries = json.loads(record.page_summaries_json)
+    image_urls = [
+        _to_image_url(item)
+        for item in image_paths
+        if isinstance(item, str)
+    ]
+    return ExamSheetListItem(
+        id=record.id or 0,
+        student_name=record.student_name,
+        subject=record.subject,
+        judgment=record.judgment,
+        score=record.score,
+        total_score=record.total_score,
+        explanation=record.explanation,
+        recognized_content=record.recognized_content,
+        page_count=record.page_count,
+        page_summaries=[item for item in page_summaries if isinstance(item, str)],
+        image_urls=image_urls,
+        created_at=record.created_at.isoformat() if record.created_at else "",
+    )
+
+
+def _delete_sheet_images(record: StudentExamSheet) -> None:
+    try:
+        image_paths = json.loads(record.image_paths_json)
+    except json.JSONDecodeError:
+        image_paths = []
+
+    for item in image_paths:
+        if not isinstance(item, str):
+            continue
+        path = Path(item)
+        if path.exists() and path.is_file():
+            path.unlink(missing_ok=True)
 
 
 # ── POST /api/judge ──────────────────────────────────────────────────────
@@ -285,6 +346,123 @@ async def judge_batch(
 
     session.commit()
     return results
+
+
+@router.post("/exam-sheet", response_model=ExamSheetJudgeResponse)
+async def judge_exam_sheet(
+    images: Annotated[list[UploadFile], File(..., description="同一位学生的连续答卷图片")],
+    session: Annotated[Session, Depends(get_session)],
+    standard_answer: Annotated[str | None, Form()] = None,
+) -> ExamSheetJudgeResponse:
+    """Grade a grouped multi-image answer sheet for one student."""
+    if not images:
+        raise HTTPException(400, "请至少上传 1 张答卷图片")
+    if len(images) > 8:
+        raise HTTPException(400, "单份答卷最多支持 8 张图片")
+
+    for image in images:
+        await _validate_image(image)
+
+    paths = _save_uploads(images)
+    _normalize_exam_sheet_uploads(paths)
+    encoded_images = [compress_and_encode(str(path)) for path in paths]
+    metadata = await extract_exam_sheet_metadata(
+        encoded_images[0],
+        crop_top_region_and_encode(str(paths[0])),
+    )
+    result = cast(dict[str, object], await grade_exam_sheet(encoded_images, metadata, standard_answer))
+
+    record = StudentExamSheet(
+        student_name=_as_str(result.get("student_name"), "未识别"),
+        subject=_as_str(result.get("subject"), "未识别"),
+        score=_as_float(result.get("score"), 0),
+        total_score=_as_float(result.get("total_score"), 100),
+        judgment=_as_str(result.get("judgment"), "partial"),
+        recognized_content=_as_str(result.get("recognized_content"), ""),
+        explanation=_as_str(result.get("explanation"), ""),
+        page_count=len(paths),
+        page_summaries_json=json.dumps(result.get("page_summaries", []), ensure_ascii=False),
+        image_paths_json=json.dumps([str(path) for path in paths], ensure_ascii=False),
+    )
+    session.add(record)
+    session.commit()
+    session.refresh(record)
+
+    page_summaries = result.get("page_summaries")
+    return ExamSheetJudgeResponse(
+        id=record.id,
+        student_name=record.student_name,
+        subject=record.subject,
+        judgment=record.judgment,
+        score=record.score,
+        total_score=record.total_score,
+        recognized_content=record.recognized_content,
+        explanation=record.explanation,
+        page_count=record.page_count,
+        page_summaries=page_summaries if isinstance(page_summaries, list) else [],
+        image_urls=[_to_image_url(path) for path in paths],
+    )
+
+
+@router.get("/exam-sheets", response_model=list[ExamSheetListItem])
+def list_exam_sheets(
+    session: Annotated[Session, Depends(get_session)],
+    offset: int = 0,
+    limit: int = 50,
+) -> list[ExamSheetListItem]:
+    """Return recent grouped student exam sheet results."""
+    from sqlmodel import select
+
+    stmt = (
+        select(StudentExamSheet)
+        .order_by(StudentExamSheet.created_at.desc())  # type: ignore[union-attr]
+        .offset(offset)
+        .limit(limit)
+    )
+    records = session.exec(stmt).all()
+    return [_sheet_response_from_record(record) for record in records]
+
+
+@router.delete("/exam-sheets/{sheet_id}")
+def delete_exam_sheet(
+    sheet_id: int,
+    session: Annotated[Session, Depends(get_session)],
+) -> dict[str, object]:
+    """Delete a student exam sheet record and its saved images."""
+    record = session.get(StudentExamSheet, sheet_id)
+    if record is None:
+        raise HTTPException(404, "未找到该学生成绩记录")
+
+    _delete_sheet_images(record)
+    session.delete(record)
+    session.commit()
+    return {"ok": True, "id": sheet_id}
+
+
+@router.patch("/exam-sheets/{sheet_id}", response_model=ExamSheetListItem)
+def update_exam_sheet(
+    sheet_id: int,
+    payload: Annotated[ExamSheetUpdateRequest, Body(...)],
+    session: Annotated[Session, Depends(get_session)],
+) -> ExamSheetListItem:
+    """Manually update student name and subject for one exam sheet."""
+    record = session.get(StudentExamSheet, sheet_id)
+    if record is None:
+        raise HTTPException(404, "未找到该学生成绩记录")
+
+    student_name = payload.student_name.strip()
+    subject = payload.subject.strip()
+    if not student_name:
+        raise HTTPException(400, "姓名不能为空")
+    if not subject:
+        raise HTTPException(400, "科目不能为空")
+
+    record.student_name = student_name
+    record.subject = subject
+    session.add(record)
+    session.commit()
+    session.refresh(record)
+    return _sheet_response_from_record(record)
 
 
 # ── GET /api/judge/results ───────────────────────────────────────────────

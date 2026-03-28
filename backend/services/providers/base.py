@@ -160,6 +160,41 @@ class LLMProvider(ABC):
         data = await self._request_with_retry(payload)
         return data["choices"][0]["message"]["content"]
 
+    async def chat_with_images(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        image_base64_list: list[str],
+        *,
+        temperature: float = 0.1,
+        max_tokens: int = 4000,
+    ) -> str:
+        """Send a multimodal request containing multiple images."""
+        content: list[dict[str, Any]] = [{"type": "text", "text": user_prompt}]
+        for image_base64 in image_base64_list:
+            content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/png;base64,{image_base64}",
+                        "detail": "auto",
+                    },
+                }
+            )
+
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": content},
+            ],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+
+        data = await self._request_with_retry(payload)
+        return data["choices"][0]["message"]["content"]
+
     async def chat_text(
         self,
         system_prompt: str,

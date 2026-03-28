@@ -48,15 +48,25 @@
                     <section class="panel-section">
                         <div class="section-heading">
                             <h3 class="section-title">上传答卷</h3>
-                            <p>支持点击选择或拖拽上传，适合桌面端快速判题。</p>
+                            <p>一次上传多张照片，按顺序自动分组成多位学生的连续答题纸。</p>
                         </div>
                         <div class="upload-area" id="upload-area">
                             <div class="upload-icon">答卷</div>
                             <div class="upload-text">点击或拖拽上传答题图片</div>
-                            <div class="upload-hint">支持手机拍照、课堂现场快速录入</div>
-                            <input type="file" id="image-input" accept="image/*" capture="camera" required>
+                            <div class="upload-hint">支持多选图片，按拍摄顺序连续分组</div>
+                            <input type="file" id="image-input" accept="image/*" capture="camera" multiple required>
                         </div>
-                        <img id="image-preview" class="preview-image" alt="预览图">
+                        <div class="sheet-config-grid">
+                            <div class="form-group">
+                                <label class="form-label" for="pages-per-sheet">每位学生页数</label>
+                                <input type="text" id="pages-per-sheet" value="2" inputmode="numeric">
+                            </div>
+                            <div class="state-message compact-message">
+                                按上传顺序每 <span id="pages-per-sheet-label">2</span> 张图片归为 1 份答卷，可点击下方卡片查看弹窗预览。
+                            </div>
+                        </div>
+                        <div id="sheet-preview-empty" class="state-message">尚未选择图片</div>
+                        <div id="sheet-preview-grid" class="sheet-preview-grid hidden"></div>
                     </section>
 
                     <section class="panel-section">
@@ -87,67 +97,44 @@
                             <h3 class="section-title">标准答案</h3>
                             <p>可填写标准答案或评分细则，便于更精细的判题。</p>
                         </div>
-                        <label class="form-label" for="standard-answer">标准答案 (选填)</label>
-                        <textarea id="standard-answer" placeholder="请输入本题的标准答案或评分细则..."></textarea>
+                        <label class="form-label" for="standard-answer">评分依据 (选填)</label>
+                        <textarea id="standard-answer" placeholder="请输入整份试卷的评分依据、标准答案或阅卷备注..."></textarea>
                     </section>
 
                     <div id="error-message" class="state-message error-message hidden"></div>
 
                     <button type="submit" class="btn btn-primary btn-block" id="submit-btn">
                         <span class="spinner"></span>
-                        <span class="btn-text">提交判题</span>
+                        <span class="btn-text">生成成绩列表</span>
                     </button>
                 </form>
             </div>
 
             <div class="panel judge-panel judge-result-panel">
-                <h2 class="card-title">判题结果</h2>
+                <h2 class="card-title">成绩列表</h2>
 
                 <div id="result-area" class="result-container">
                     <div class="result-placeholder state-message" id="result-placeholder">
-                        上传答卷并提交后，这里会生成识别内容、评分判断与步骤分析
+                        上传并提交后，这里会生成学生姓名、考试科目和对应得分列表
                     </div>
 
                     <div id="result-content" class="hidden">
                         <div class="result-stack">
-                        <section class="result-summary">
-                            <div class="score-display">
-                                <div class="score-circle">
-                                    <span id="res-score">0</span>
-                                    <span class="score-total">/<span id="res-total">0</span></span>
-                                </div>
-                                <div class="score-details">
-                                    <div class="badge" id="res-type">未知题型</div>
-                                    <div class="result-judgment" id="res-judgment">判题中...</div>
-                                </div>
-                            </div>
-                        </section>
-
-                        <section class="result-section">
-                            <h3 class="section-title">识别内容</h3>
-                            <div class="result-explanation" id="res-recognized">无</div>
-                        </section>
-
-                        <section class="result-section">
-                            <h3 class="section-title">综合点评</h3>
-                            <div class="result-explanation" id="res-explanation">无</div>
-                        </section>
-
-                        <section class="result-section table-panel hidden" id="res-steps-container">
-                            <h3 class="section-title">步骤得分详情</h3>
+                        <section class="result-section table-panel">
                             <div class="table-scroll">
-                                <table id="res-steps-table">
+                                <table id="score-table">
                                     <thead>
                                         <tr>
-                                            <th>步骤</th>
+                                            <th>姓名</th>
+                                            <th>科目</th>
                                             <th>得分</th>
-                                            <th>状态</th>
-                                            <th>评语</th>
+                                            <th>时间</th>
+                                            <th>答卷</th>
+                                            <th>详情</th>
+                                            <th>删除</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
-                                        <!-- Steps dynamically injected -->
-                                    </tbody>
+                                    <tbody id="score-table-body"></tbody>
                                 </table>
                             </div>
                         </section>
@@ -157,5 +144,86 @@
             </div>
         </section>
     </main>
+
+    <div id="sheet-modal-backdrop" class="provider-modal-backdrop hidden"></div>
+    <section id="sheet-modal" class="provider-modal hidden" aria-hidden="true">
+        <div class="provider-modal-header">
+            <div>
+                <div class="provider-modal-title" id="sheet-modal-title">答卷预览</div>
+                <div class="result-meta" id="sheet-modal-meta">按顺序展示连续页</div>
+            </div>
+            <button type="button" class="math-preview-close" id="sheet-modal-close">关闭</button>
+        </div>
+        <div class="provider-modal-body sheet-modal-body" id="sheet-modal-body"></div>
+    </section>
+
+    <div id="detail-modal-backdrop" class="provider-modal-backdrop hidden"></div>
+    <section id="detail-modal" class="provider-modal hidden" aria-hidden="true">
+        <div class="provider-modal-header">
+            <div>
+                <div class="provider-modal-title" id="detail-modal-title">成绩详情</div>
+                <div class="result-meta" id="detail-modal-meta">姓名、科目与得分</div>
+            </div>
+            <button type="button" class="math-preview-close" id="detail-modal-close">关闭</button>
+        </div>
+        <div class="provider-modal-body detail-modal-body">
+            <section class="result-summary detail-summary">
+                <div class="score-display">
+                    <div class="score-circle">
+                        <span id="res-score">0</span>
+                        <span class="score-total">/<span id="res-total">0</span></span>
+                    </div>
+                    <div class="score-details">
+                        <div class="badge" id="res-type">未识别学生</div>
+                        <div class="result-judgment" id="res-judgment">待生成</div>
+                        <div class="result-meta" id="res-subject">科目：未识别</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="result-section">
+                <div class="grid-2 form-grid">
+                    <div class="form-group">
+                        <label class="form-label" for="detail-student-name">学生姓名</label>
+                        <input type="text" id="detail-student-name" placeholder="可手动修正姓名">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="detail-subject">考试科目</label>
+                        <input type="text" id="detail-subject" placeholder="可手动修正科目">
+                    </div>
+                </div>
+                <div class="button-row button-row-end">
+                    <button type="button" class="btn btn-outline" id="detail-save-btn">保存姓名和科目</button>
+                </div>
+            </section>
+
+            <section class="result-section">
+                <h3 class="section-title">答卷识别摘要</h3>
+                <div class="result-explanation" id="res-recognized">无</div>
+            </section>
+
+            <section class="result-section">
+                <h3 class="section-title">阅卷总评</h3>
+                <div class="result-explanation" id="res-explanation">无</div>
+            </section>
+
+            <section class="result-section table-panel hidden" id="res-steps-container">
+                <h3 class="section-title">分页摘要</h3>
+                <div class="table-scroll">
+                    <table id="res-steps-table">
+                        <thead>
+                            <tr>
+                                <th>页码</th>
+                                <th>内容摘要</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Page summaries dynamically injected -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </section>
 </body>
 </html>

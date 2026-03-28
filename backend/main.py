@@ -96,6 +96,8 @@ if (_FRONTEND_DIR / "static").exists():
         name="static",
     )
 
+app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR), check_dir=False), name="uploads")
+
 # ── Page routes ──────────────────────────────────────────────────────────
 
 

@@ -86,6 +86,23 @@ class JudgeResult(SQLModel, table=True):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class StudentExamSheet(SQLModel, table=True):
+    """A grouped student answer sheet made of multiple uploaded images."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    student_name: str
+    subject: str
+    score: float
+    total_score: float
+    judgment: str
+    recognized_content: str
+    explanation: str
+    page_count: int
+    page_summaries_json: str
+    image_paths_json: str
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 class ProviderConfig(SQLModel, table=True):
     """User-managed LLM provider configuration.
 
