@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import shutil
 import uuid
 from pathlib import Path
@@ -22,6 +23,8 @@ from backend.models import (
 )
 from backend.schemas import DocumentConfirmRequest, DocumentParseResponse
 from backend.services.document_importer import build_import_bundles
+
+log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/upload", tags=["上传"])
 
@@ -47,8 +50,16 @@ async def upload_document(
 
     try:
         summary, questions, bundles = await build_import_bundles(saved_paths, saved_names)
+    except ValueError as exc:
+        # Known parsing issue (e.g. no questions found)
+        log.warning("Document parsing returned no results: %s", exc)
+        raise HTTPException(422, f"文档解析未提取到题目：{exc}") from exc
     except Exception as exc:
+        log.exception("Document parsing failed for files: %s", saved_names)
         raise HTTPException(500, f"文档解析失败：{exc}") from exc
+
+    if not questions:
+        raise HTTPException(422, "文档解析完成但未提取到任何题目，请检查文档内容格式是否正确")
 
     return DocumentParseResponse(
         filename=summary,
